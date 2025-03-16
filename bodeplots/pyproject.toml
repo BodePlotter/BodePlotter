@@ -1,0 +1,118 @@
+# This project was generated with 0.3.21 using template: https://github.com/beeware/briefcase-template@v0.3.21
+[tool.briefcase]
+project_name = "Bode-Plots"
+bundle = "0.1"
+version = "0.0.1"
+url = "https://github.com"
+license.file = "LICENSE"
+author = "Bode Plotter"
+author_email = "Bode.Plotter@gmail.com"
+
+[tool.briefcase.app.bodeplots]
+formal_name = "Bode-Plots"
+description = "OWON HDS320S Bode-Plots"
+long_description = """
+(C) 2025 by Bode Plotter
+- This was written in Python for use with OWON HDS320S to:
+- Generate Bode-Plots
+- Get Peak FFT values
+- Display oscilloscope 
+- Dispay X-Y mode or Lissajous pattern
+"""
+icon = "icons/bodeplots"
+
+sources = [
+    "src/bodeplots",
+]
+test_sources = [
+    "tests",
+]
+
+requires = [
+    # Add your cross-platform app requirements here
+    "pyusb",
+    "numpy",
+    "matplotlib",
+    "scipy",
+    "dearpygui",
+    "screeninfo",
+    "PyQt5"
+]
+test_requires = [
+    # Add your cross-platform test requirements here
+]
+
+[tool.briefcase.app.bodeplots.macOS]
+universal_build = true
+requires = [
+    # Add your macOS-specific app requirements here
+]
+
+[tool.briefcase.app.bodeplots.linux]
+requires = [
+    # Add your Linux-specific app requirements here
+]
+
+[tool.briefcase.app.bodeplots.linux.system.debian]
+system_requires = [
+    # Add any system packages needed at build the app here
+]
+
+system_runtime_requires = [
+    # Add any system packages needed at runtime here
+]
+
+[tool.briefcase.app.bodeplots.linux.system.rhel]
+system_requires = [
+    # Add any system packages needed at build the app here
+]
+
+system_runtime_requires = [
+    # Add any system packages needed at runtime here
+]
+
+[tool.briefcase.app.bodeplots.linux.system.suse]
+system_requires = [
+    # Add any system packages needed at build the app here
+]
+
+system_runtime_requires = [
+    # Add any system packages needed at runtime here
+]
+
+[tool.briefcase.app.bodeplots.linux.system.arch]
+system_requires = [
+    # Add any system packages needed at build the app here
+]
+
+system_runtime_requires = [
+    # Add any system packages needed at runtime here
+]
+
+[tool.briefcase.app.bodeplots.linux.flatpak]
+flatpak_runtime = "org.freedesktop.Platform"
+flatpak_runtime_version = "24.08"
+flatpak_sdk = "org.freedesktop.Sdk"
+
+[tool.briefcase.app.bodeplots.windows]
+requires = [
+    # Add your Windows-specific app requirements here
+]
+
+# Mobile deployments
+[tool.briefcase.app.bodeplots.iOS]
+requires = [
+    # Add your iOS-specific app requirements here
+]
+
+[tool.briefcase.app.bodeplots.android]
+requires = [
+    # Add your Android-specific app requirements here
+]
+
+# Web deployments
+[tool.briefcase.app.bodeplots.web]
+requires = [
+    # Add your web-specific app requirements here
+]
+
