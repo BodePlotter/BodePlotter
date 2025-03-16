@@ -194,7 +194,7 @@ f2 = 1 / (2 * π * 2930 * 1.02 × 10^-9) ≈ 53.254 [kHz]
 
 The circuit was simulated using TINA-TIV9 software. Below is the visual representation of the circuit setup:
 
-![TINA-TIV9 Circuit Simulation](./media/image1.png){style="width:4.09306in;height:1.59583in"}
+![TINA-TIV9 Circuit Simulation](./media/image1.png)
 
 ---
 
@@ -202,7 +202,7 @@ The circuit was simulated using TINA-TIV9 software. Below is the visual represen
 
 The simulation provided the following results, showcasing the circuit's behavior:
 
-![TINA-TIV9 Simulation Results](./media/image2.jpeg){style="width:4.84444in;height:3.23611in"}
+![TINA-TIV9 Simulation Results](./media/image2.jpeg)
 
 ---
 
@@ -210,6 +210,6 @@ The simulation provided the following results, showcasing the circuit's behavior
 
 The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction with the Bode-Plots Python application:
 
-![Bode Plots with OWON HDS320S](./media/image3.png){style="width:5.50625in;height:5.00139in"}
+![Bode Plots with OWON HDS320S](./media/image3.png)
 
 
