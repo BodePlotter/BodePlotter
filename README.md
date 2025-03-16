@@ -120,7 +120,7 @@
 1. PhaseDiffProcessor may have sign inconsistencies due to timing mismatches between channels.
 2. DearPyGui maximize button doesn't work due to fixed window size constraints.
 3. Thin scroll bar in Windows 11 on the Magnitude/Phase Bode Plot window.
-4. Matplotlib windows disabled in Windows 11 due to compatibility issues.
+4. MatPlotLib windows disabled in Windows 11 due to compatibility issues.
 5. Install the HDS320S driver on Windows for USB functionality.
 
 ---
@@ -138,7 +138,7 @@
 3. Connect probes:
    - CH1 (yellow lead) to circuit input.
    - CH2 (blue lead) to circuit output.
-   - Gen Out to input ground.
+   - Gen Out to circuit input.
 
 ---
 
