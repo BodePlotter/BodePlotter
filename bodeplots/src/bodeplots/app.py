@@ -1193,8 +1193,8 @@ class PhaseDiffProcessor:
         # Append the incoming value to phase_diff_values
         self.phase_diff_values.append(value)
         
-        # If initial evaluation period is not complete, wait
-        if len(self.phase_diff_values) < self.initial_evaluation_count:
+        # If initial evaluation period is not complete, wait (2025/03/18 only wait for initial evaluation period only where self.sign_locked is False)
+        if len(self.phase_diff_values) < self.initial_evaluation_count and not self.sign_locked:
             # print(f"Value: {value}, Waiting for initial evaluation period to complete.")
             return None
         
@@ -1208,6 +1208,8 @@ class PhaseDiffProcessor:
         if self.sign_locked:
             if abs(value) > self.threshold:
                 # print(f"Value: {value}, Outside threshold. Locked Sign remains: {'Positive' if self.locked_sign > 0 else 'Negative'}")
+                # 2025/03/17 clear phase_diff_values after lock so once value are within threshold new evaluation will be made.
+                self.phase_diff_values.clear()
                 return self.locked_sign
             else:
                 moving_avg = self.weighted_moving_average(self.phase_diff_values)
@@ -1774,7 +1776,7 @@ def start_mesurement_threaded():
     OKrun = True
 
     initial_evaluation_count = 5
-    threshold = 60
+    threshold = 15
     weights = np.array([0.1, 0.15, 0.2, 0.25, 0.3])
 
     processor = PhaseDiffProcessor(initial_evaluation_count, threshold, weights)
@@ -2464,11 +2466,23 @@ def full_sin_analysis(sample_rate, analysis_factor, signal1, signal2):
     amplitude_db_signal2 = analysis_factor + 20 * np.log10((np.abs(fft_signal2) / n) + 1e-10)  # Add small value 1e-10 (-200 dB) to avoid log(0)
 
     # Max amplitude and frequency
-    max_index_signal1 = np.argmax(np.abs(fft_signal1[0:n//2]))
+    # max_index_signal1 = np.argmax(np.abs(fft_signal1[0:n//2]))
+    # max_freq_signal1 = frequencies[max_index_signal1]
+    # max_amplitude_db_signal1 = amplitude_db_signal1[max_index_signal1]
+   
+    # 2025/03/18 Exclude indices where the frequency is zero
+    valid_indices = np.where(frequencies != 0)[0]
+    max_index_signal1 = valid_indices[np.argmax(np.abs(fft_signal1[valid_indices]))]
     max_freq_signal1 = frequencies[max_index_signal1]
     max_amplitude_db_signal1 = amplitude_db_signal1[max_index_signal1]
-    
-    max_index_signal2 = np.argmax(np.abs(fft_signal2[0:n//2]))
+
+    # max_index_signal2 = np.argmax(np.abs(fft_signal2[0:n//2]))
+    # max_freq_signal2 = frequencies[max_index_signal2]
+    # max_amplitude_db_signal2 = amplitude_db_signal2[max_index_signal2]
+
+    # 2025/03/18 Exclude indices where the frequency is zero
+    # valid_indices = np.where(frequencies != 0)[0]
+    max_index_signal2 = valid_indices[np.argmax(np.abs(fft_signal2[valid_indices]))]
     max_freq_signal2 = frequencies[max_index_signal2]
     max_amplitude_db_signal2 = amplitude_db_signal2[max_index_signal2]
 
