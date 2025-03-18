@@ -4,8 +4,8 @@ Name: bodeplots
 Formal-Name: Bode-Plots
 App-ID: 0.1.bodeplots
 Version: 0.0.1
-Home-page: https://github.com
-Download-URL: https://github.com
+Home-page: https://github.com/BodePlotter/BodePlotter
+Download-URL: https://github.com/BodePlotter/BodePlotter/releases
 Author: Bode Plotter
 Author-email: Bode.Plotter@gmail.com
 Summary: OWON HDS320S Bode-Plots
