@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "Bode-Plots"
 bundle = "0.1"
-version = "0.0.1"
+version = "0.0.2"
 url = "https://github.com/BodePlotter/BodePlotter"
 license.file = "LICENSE"
 author = "Bode Plotter"
@@ -11,6 +11,7 @@ author_email = "Bode.Plotter@gmail.com"
 [tool.briefcase.app.bodeplots]
 formal_name = "Bode-Plots"
 description = "OWON HDS320S Bode-Plots"
+console_app = true    # <-- This flag enables console support.
 long_description = """
 (C) 2025 by Bode Plotter
 - This was written in Python for use with OWON HDS320S to:
@@ -23,7 +24,10 @@ icon = "icons/bodeplots"
 
 sources = [
     "src/bodeplots",
+    "src/bodeplots/managers",
+    "src/bodeplots/resources"
 ]
+
 test_sources = [
     "tests",
 ]
@@ -36,10 +40,15 @@ requires = [
     "scipy",
     "dearpygui",
     "screeninfo",
-    "PyQt5"
+    "PyQt5",
 ]
+
 test_requires = [
     # Add your cross-platform test requirements here
+]
+
+entry_points = [
+    "__main__.py"
 ]
 
 [tool.briefcase.app.bodeplots.macOS]
@@ -50,7 +59,13 @@ requires = [
 
 [tool.briefcase.app.bodeplots.linux]
 requires = [
-    # Add your Linux-specific app requirements here
+    "pyusb",
+    "numpy",
+    "matplotlib",
+    "scipy",
+    "dearpygui",
+    "screeninfo",
+    "PyQt5",
 ]
 
 [tool.briefcase.app.bodeplots.linux.system.debian]
@@ -96,7 +111,18 @@ flatpak_sdk = "org.freedesktop.Sdk"
 
 [tool.briefcase.app.bodeplots.windows]
 requires = [
-    # Add your Windows-specific app requirements here
+    "pyusb",
+    "numpy",
+    "matplotlib",
+    "scipy",
+    "dearpygui",
+    "screeninfo",
+    "PyQt5",
+]
+system_requires = [
+    "dll-required-for-matplotlib",
+    "dll-required-for-dearpygui",
+    "any-other-dependency"
 ]
 
 # Mobile deployments
