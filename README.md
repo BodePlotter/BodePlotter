@@ -346,10 +346,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ---
 
-<video width="600" controls>
-  <source src="./media/HDS320S-bode-plots-0.0.2.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+[Watch the Bode Plot Video](./media/HDS320S-bode-plots-0.0.2.mp4)
 
 ---
 
