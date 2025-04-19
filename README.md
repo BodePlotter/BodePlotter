@@ -173,7 +173,7 @@
 3. **Matplotlib Performance on Windows 11**  
    On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds.
    - If Matplotlib is selected, starting measurements or playing may take more than 15 seconds for additional windows load.
-     You may want to click the Pause button until the windows are loaded after seening the first data points.
+     You may want to click the Pause button until the windows are loaded after seeing the first data points.
    - *Matplotlib windows support was added in version 0.0.2.*
    - Matplotlib windows are not closed automatically before DearPyGui exits, leaving log and temporary files in the user’s TEMP directory.
    - **Command Prompt:**  
@@ -262,7 +262,7 @@ options:
 ## Software Usage
 1. Launch the software via the command line (`bodeplots`) or from the menu.
 2. Verify oscilloscope settings and input desired parameters.
-3. Click **Search and Setup DSO** to initialize.
+3. Click **Search and Setup Oscilloscope** to initialize.
 4. Click **Start Measurements** (takes ~10 minutes).
 5. After completion, load the JSON log file for playback and analysis.
 
