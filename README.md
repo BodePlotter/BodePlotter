@@ -15,6 +15,7 @@
 10. [Oscilloscope Setup](#oscilloscope-setup)
 11. [Software Usage](#software-usage)
 12. [Example RC Band Pass Filter Circuit](#example-rc-band-pass-filter-circuit)
+13. [Screen shots of bode-plots](#screen-shots-of-bode-plots)
 
 ---
 
@@ -328,4 +329,27 @@ The simulation provided the following results, showcasing the circuit's behavior
 The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction with the Bode-Plots Python application:
 
 ![Bode Plots with OWON HDS320S](./media/image3.png)
+
+---
+
+### Screen shots of bode-plots
+
+![Bode-plots before Measurements or playback](./media/Screenshot_001.png)
+
+---
+
+![Bode-plots Playback Dark Theme](./media/Screenshot_002.png)
+
+---
+
+![Bode-plots Playback Light Theme](./media/Screenshot_003.png)
+
+---
+
+<video width="600" controls>
+  <source src="./media/HDS320S-bode-plots-0.0.2.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+---
 
