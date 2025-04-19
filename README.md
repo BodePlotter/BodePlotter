@@ -15,7 +15,7 @@
 10. [Oscilloscope Setup](#oscilloscope-setup)
 11. [Software Usage](#software-usage)
 12. [Example RC Band Pass Filter Circuit](#example-rc-band-pass-filter-circuit)
-13. [Screen shots of bode-plots](#screen-shots-of-bode-plots)
+13. [Screen shots of bodeplots](#screen-shots-of-bodeplots)
 
 ---
 
@@ -332,21 +332,21 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ---
 
-### Screen shots of bode-plots
+### Screen shots of bodeplots
 
-![Bode-plots before Measurements or playback](./media/Screenshot_001.png)
-
----
-
-![Bode-plots Playback Dark Theme](./media/Screenshot_002.png)
+![HDS320S Magnitude/Phase Bode Plotter window before Measurements or playback](./media/Screenshot_001.png)
 
 ---
 
-![Bode-plots Playback Light Theme](./media/Screenshot_003.png)
+![HDS320S Magnitude/Phase Bode Plotter window Playback Dark Theme](./media/Screenshot_002.png)
 
 ---
 
-[Watch the Bode Plot Video](./media/HDS320S-bode-plots-0.0.2.mp4)
+![HDS320S Magnitude/Phase Bode Plotter window  Playback Light Theme](./media/Screenshot_003.png)
+
+---
+
+[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.2.mp4)
 
 ---
 
