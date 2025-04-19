@@ -1,1 +1,0 @@
-﻿Start-Process powershell.exe -WindowStyle Hidden -ArgumentList bodeplots.exe
