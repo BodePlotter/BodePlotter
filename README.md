@@ -137,8 +137,8 @@
     ```PowerShell
     mkdir C:\BodePlotter-ScopeFFT
     cd C:\BodePlotter-ScopeFFT
-    python or https://www.python.org/downloads/release/python-3132/
-    https://www.python.org/ftp/python/3.13.2/python-3.13.2-amd64.exe
+    python # or https://www.python.org/downloads/release/python-3132/
+    # https://www.python.org/ftp/python/3.13.2/python-3.13.2-amd64.exe
     python -m venv bodeplotter
     .\bodeplotter\Scripts\activate
     python.exe -m pip install --upgrade pip
