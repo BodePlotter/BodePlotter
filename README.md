@@ -244,7 +244,7 @@ options:
 
 ## Build the .deb Package
 1. Use Live Mint (22.1) via VirtualBox or a local installation.
-2. Download `bodeplots-source-code.tgz`.
+2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/bodeplots-source-code.tgz).
 3. Follow these steps:
    ```bash
    mkdir BodePlotter-ScopeFFT
@@ -287,7 +287,7 @@ options:
     python.exe -m pip install --upgrade pip
     pip install briefcase numpy dearpygui matplotlib pyusb scipy screeninfo PyQt5
     ```
-4.  Extract source code and build:
+4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/bodeplots-source-code.tgz)
     ```PowerShell
     cd C:\BodePlotter-ScopeFFT
     .\bodeplotter\Scripts\activate
