@@ -187,7 +187,7 @@ options:
 2. Follow the installation prompts: **Next** → **Next** → **Finish**.
 3. Open "Bode" from the Windows Start menu.
 4. Adjust vertical height as needed.
-5. Install drivers for the OWON HDS320S via the provided software or the [Driver Directory](http://files.owon.com.cn/software/PC/HDS300_series_pc_software.zip).
+5. [Install USB Driver for Windows 11](#install-usb-driver-for-windows-11) using Zadig.
 
 ---
 
