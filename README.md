@@ -3,9 +3,10 @@
 ---
 
 For installer downloads and source code, please visit our GitHub Pages site:  
-[https://github.com/BodePlotter/BodePlotter](https://github.com/BodePlotter/BodePlotter)  
+[BodePlotter](https://github.com/BodePlotter/BodePlotter)  
 You can also browse the latest releases on GitHub:  
 [Releases](https://github.com/BodePlotter/BodePlotter/releases)
+
 ---
 
 ## Table of Contents
