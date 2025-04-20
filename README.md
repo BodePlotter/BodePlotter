@@ -183,7 +183,7 @@ options:
 ---
 
 ## Install on Windows 11
-1. Download `Bode-Plots-0.0.2.msi` and double-click it in File Explorer.
+1. Download [Bode-Plots-0.0.2.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/Bode-Plots-0.0.2.msi) and double-click it in File Explorer.
 2. Follow the installation prompts: **Next** → **Next** → **Finish**.
 3. Open "Bode" from the Windows Start menu.
 4. Adjust vertical height as needed.
@@ -227,7 +227,7 @@ options:
 ---
 
 ## Install the .deb Package on Mint Linux (22.1)
-1. Download: `bodeplots_0.0.2-1~linuxmint-xia_amd64.deb`.
+1. Download: [bodeplots_0.0.2-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/bodeplots_0.0.2-1.linuxmint-xia_amd64.deb).
 2. Open a terminal and run:
    ```bash
    sudo apt install ./bodeplots_0.0.2-1~linuxmint-xia_amd64.deb
