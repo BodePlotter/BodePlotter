@@ -2,6 +2,12 @@
 
 ---
 
+For installer downloads and source code, please visit our GitHub Pages site:  
+[https://github.com/BodePlotter/BodePlotter](https://github.com/BodePlotter/BodePlotter)  
+You can also browse the latest releases on GitHub:  
+[Releases](https://github.com/BodePlotter/BodePlotter/releases)
+---
+
 ## Table of Contents
 1. [Features](#features)
 2. [Install on Windows 11](#install-on-windows-11)
