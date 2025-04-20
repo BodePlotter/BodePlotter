@@ -346,7 +346,8 @@ options:
      .\bodeplotter\Scripts\activate
      briefcase.exe -v
      cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
-     .\Bode-Plots.exe     ```
+     .\Bode-Plots.exe
+     ```
 
 ---
 
