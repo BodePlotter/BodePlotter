@@ -41,8 +41,6 @@ You can also browse the latest releases on GitHub:
    - [OWON HDS300 Series Digital Oscilloscope](https://www.owonna.com/products_owon_hds300_series_digital_oscilloscope)
    - [SCPI Interface for OWON HDS320S](http://files.owon.com.cn/software/Application/HDS200_Series_SCPI_Protocol.pdf)
 
-   **Note**: I experienced minor issues with the kickstand and oscilloscope leads. These were resolved by returning the unit for a replacement.
-
 ---
 
 ## Install on Windows 11
