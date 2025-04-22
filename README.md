@@ -1,4 +1,4 @@
-# Frequency Response (Bode Plot)
+## Frequency Response (Bode Plot)
 
 ---
 
