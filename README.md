@@ -1,3 +1,6 @@
+
+---
+
 ## Frequency Response (Bode Plot)
 
 ---
