@@ -200,7 +200,7 @@ options:
 ---
 
 ## Install on Windows 11
-1. Download [Bode-Plots-0.0.3.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/Bode-Plots-0.0.3.msi) and double-click it in File Explorer.
+1. Download [Bode-Plots-0.0.4.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/Bode-Plots-0.0.4.msi) and double-click it in File Explorer.
 2. Follow the installation prompts: **Next** → **Next** → **Finish**.
 3. Open "Bode" from the Windows Start menu.
 4. Adjust vertical height as needed.
@@ -244,10 +244,10 @@ options:
 ---
 
 ## Install the .deb Package on Mint Linux (22.1)
-1. Download: [bodeplots_0.0.3-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/bodeplots_0.0.3-1.linuxmint-xia_amd64.deb).
+1. Download: [bodeplots_0.0.4-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/bodeplots_0.0.4-1.linuxmint-xia_amd64.deb).
 2. Open a terminal and run:
    ```bash
-   sudo apt install ./bodeplots_0.0.3-1~linuxmint-xia_amd64.deb
+   sudo apt install ./bodeplots_0.0.4-1~linuxmint-xia_amd64.deb
    ```
 
 ---
@@ -261,7 +261,7 @@ options:
 
 ## Build the .deb Package
 1. Use Live Mint (22.1) via VirtualBox or a local installation.
-2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/bodeplots-source-code.tgz).
+2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/bodeplots-source-code.tgz).
 3. Follow these steps:
    ```bash
    mkdir BodePlotter-ScopeFFT
@@ -281,7 +281,7 @@ options:
    briefcase build
    briefcase package
    ```
-   Package file location: `dist/bodeplots_0.0.3-1~linuxmint-xia_amd64.deb`.
+   Package file location: `dist/bodeplots_0.0.4-1~linuxmint-xia_amd64.deb`.
 
 ---
 
@@ -304,7 +304,7 @@ options:
     python.exe -m pip install --upgrade pip
     pip install briefcase numpy dearpygui matplotlib pyusb scipy screeninfo PyQt5
     ```
-4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/bodeplots-source-code.tgz)
+4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/bodeplots-source-code.tgz)
     ```PowerShell
     cd C:\BodePlotter-ScopeFFT
     .\bodeplotter\Scripts\activate
@@ -316,7 +316,7 @@ options:
     briefcase run -u
     briefcase package windows
     ```
-5.  Packaged MSI: `dist\Bode-Plots-0.0.3.msi`.
+5.  Packaged MSI: `dist\Bode-Plots-0.0.4.msi`.
 
 ---
 
