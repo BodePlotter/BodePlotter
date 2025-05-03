@@ -112,17 +112,31 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ### Screen shots of bodeplots
 
+### HDS320S Magnitude/Phase Bode Plotter window before Measurements or playback
+
 ![HDS320S Magnitude/Phase Bode Plotter window before Measurements or playback](./media/Screenshot_001.png)
 
 ---
+
+### HDS320S Magnitude/Phase Bode Plotter window Playback Dark Theme
 
 ![HDS320S Magnitude/Phase Bode Plotter window Playback Dark Theme](./media/Screenshot_002.png)
 
 ---
 
-![HDS320S Magnitude/Phase Bode Plotter window  Playback Light Theme](./media/Screenshot_003.png)
+### HDS320S Magnitude/Phase Bode Plotter window Playback Light Theme
+
+![HDS320S Magnitude/Phase Bode Plotter window Playback Light Theme](./media/Screenshot_003.png)
 
 ---
+
+### HDS320S Magnitude/Phase Bode Plotter window 1MHz to 10MHz getting into the noise floor
+
+![HDS320S Magnitude/Phase Bode Plotter window 1MHz to 10MHz getting into the noise floor](./media/Screenshot_004.png)
+
+---
+
+### Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Playback Video
 
 [Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.3.mp4)
 
