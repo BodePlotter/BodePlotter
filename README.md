@@ -124,7 +124,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ---
 
-[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.2.mp4)
+[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.3.mp4)
 
 ---
 
@@ -132,7 +132,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 1. Launch the software via the command line (`bodeplots`) or from the menu.
 2. Verify oscilloscope settings and input desired parameters.
 3. Click **Search and Setup Oscilloscope** to initialize.
-4. Click **Start Measurements** (takes ~10 minutes).
+4. Click **Start Measurements** (takes about 15 to 30 minutes).
 5. After completion, load the JSON log file for playback and analysis.
 
 ---
@@ -186,7 +186,7 @@ options:
 ---
 
 ## Install on Windows 11
-1. Download [Bode-Plots-0.0.2.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/Bode-Plots-0.0.2.msi) and double-click it in File Explorer.
+1. Download [Bode-Plots-0.0.3.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/Bode-Plots-0.0.3.msi) and double-click it in File Explorer.
 2. Follow the installation prompts: **Next** → **Next** → **Finish**.
 3. Open "Bode" from the Windows Start menu.
 4. Adjust vertical height as needed.
@@ -230,10 +230,10 @@ options:
 ---
 
 ## Install the .deb Package on Mint Linux (22.1)
-1. Download: [bodeplots_0.0.2-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/bodeplots_0.0.2-1.linuxmint-xia_amd64.deb).
+1. Download: [bodeplots_0.0.3-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/bodeplots_0.0.3-1.linuxmint-xia_amd64.deb).
 2. Open a terminal and run:
    ```bash
-   sudo apt install ./bodeplots_0.0.2-1~linuxmint-xia_amd64.deb
+   sudo apt install ./bodeplots_0.0.3-1~linuxmint-xia_amd64.deb
    ```
 
 ---
@@ -247,7 +247,7 @@ options:
 
 ## Build the .deb Package
 1. Use Live Mint (22.1) via VirtualBox or a local installation.
-2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/bodeplots-source-code.tgz).
+2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/bodeplots-source-code.tgz).
 3. Follow these steps:
    ```bash
    mkdir BodePlotter-ScopeFFT
@@ -267,7 +267,7 @@ options:
    briefcase build
    briefcase package
    ```
-   Package file location: `dist/bodeplots_0.0.2-1~linuxmint-xia_amd64.deb`.
+   Package file location: `dist/bodeplots_0.0.3-1~linuxmint-xia_amd64.deb`.
 
 ---
 
@@ -290,7 +290,7 @@ options:
     python.exe -m pip install --upgrade pip
     pip install briefcase numpy dearpygui matplotlib pyusb scipy screeninfo PyQt5
     ```
-4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.2/bodeplots-source-code.tgz)
+4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.3/bodeplots-source-code.tgz)
     ```PowerShell
     cd C:\BodePlotter-ScopeFFT
     .\bodeplotter\Scripts\activate
@@ -302,22 +302,16 @@ options:
     briefcase run -u
     briefcase package windows
     ```
-5.  Packaged MSI: `dist\Bode-Plots-0.0.2.msi`.
+5.  Packaged MSI: `dist\Bode-Plots-0.0.3.msi`.
 
 ---
 
 ## Issues
 
-1. **PhaseDiffProcessor Sign Issues**  
-   The `PhaseDiffProcessor` may exhibit sign inconsistencies due to timing mismatches between channels.
-   - Uses a weighted moving average with sign locking.
-   - `initial_evaluation_count` is set to 5 and `threshold` is set to 15 (± degrees).
-   - A forced sign adjustment is applied to the first 5 phase samples.
-
-2. **DearPyGui Maximize Button**  
+1. **DearPyGui Maximize Button**  
    The maximize button in DearPyGui does not function correctly due to fixed window size constraints.
 
-3. **Matplotlib Performance on Windows 11**  
+2. **Matplotlib Performance on Windows 11**  
    On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds.
    - If Matplotlib is selected, starting measurements or playing may take more than 15 seconds for additional windows load.
      You may want to click the Pause button until the windows are loaded after seeing the first data points.
@@ -331,7 +325,7 @@ options:
      ```powershell
      explorer $env:TEMP
      ```
-   - A bug with `briefcase.exe` logging can cause Matplotlib to fail due to I/O handling issues. This happens because the Briefcase logging wrapper does not support handling multiple instances, and using Matplotlib within threads can make DearPyGui unstable.
+   - [Bug #55 with briefcase-windows-VisualStudio-template](https://github.com/beeware/briefcase-windows-VisualStudio-template/issues/55) that causes Matplotlib to fail due to I/O handling issues. This happens as a result of the Briefcase logging wrapper does not support handling multiple instances due to spawning Matplotlib windows. Note, using Matplotlib within threads makes DearPyGui unstable and therefore starting a new process was used in place of threads. The new process in windows results in spawning a new instance.
    - **Workaround:**  
      Using the `console_app` flag in `pyproject.toml` to open a blank console appears to disable logging, mitigating these issues.
      The advantage of the console is you can do ctrl+c to close all Bode-Plots windows. Recommend Stop first for active measurements or Play back.

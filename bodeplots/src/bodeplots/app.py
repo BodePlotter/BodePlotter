@@ -7,7 +7,7 @@ MIT License
 Copyright (c) [2025] [Bode Plotter]
 Original code written by Simone Albano on 10/15/2023
 Bode plot implementation for the handheld oscilloscope OWON HDS320S
-Highly rewritten and modified between 01/20/2025 to 04/20/2025
+Highly rewritten and modified between 01/20/2025 to 05/04/2025
 Modifications were done by Bode Plotter with assistance from AI sourced from Google and Bing.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -64,7 +64,7 @@ import argparse
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # 2025/03/19 Import the matplotlib class for bode-plotter
-from bodeplots.managers import PlotManagerFFToscilloscope, PlotManagerMagnitudePhase, XYoscilloscope, PhaseDiffProcessor
+from bodeplots.managers import PlotManagerFFToscilloscope, PlotManagerMagnitudePhase, XYoscilloscope
 
 from uuid import uuid4
 import shutil  # Import for cleanup
@@ -84,15 +84,16 @@ points_spacing = ['Linear', 'Logarithmic']
 # Global system variables
 global channel_in, channel_out, CH1_probe_attenuation_ratio, CH2_probe_attenuation_ratio
 global CH1_coupling, CH2_coupling, Sample_command, DEPMEM, waveform_amplitude_V
-global AWG_output_impedance, points_per_decade, start_decade, stop_decade
+global AWG_output_impedance, points_per_decade, start_decade, stop_decade, addpm
 global point_resize_factor, vertical_scaling_factor, horizontal_scaling_factor
 global nWaveSamples, FTTcorection, read_delay_ms, sample_delay_s, plot_win_disposition, LogFile
 global JSONLogFile, plot_process, oscilloscope_OUT, oscilloscope_IN, oscilloscope
-global is_playing, is_paused, play_speed, is_recording, FixStartPhaseOffSet
+global is_playing, is_paused, play_speed, is_recording
 
 global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
 global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event
 global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope
+global CH1_amplitude_scales, CH2_amplitude_scales, MaxFreqAdjust
 # Global thread objects
 thread_magnitude_phase = None
 thread_fft_oscilloscope = None
@@ -126,15 +127,25 @@ time_bases_values = [
     0.000002, 0.000005, 0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02,
     0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000
 ]
-amplitude_scales_commands = [
-    '100V', '50V', '10.0V', '5.00V', '2.00V', '1.00V', '500mV', '200mV', '100mV', '50.0mV', '20.0mV', '10.0mV'
-]
-amplitude_scales_values = [
-    100, 50, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01
-]
+# Define a dictionary mapping each attenuation ratio to its corresponding
+# amplitude scales (with both commands and values)
+# 2025/04/24 Seeing 500uV with 10X and 1X this doesn't seem to be documented in HDS200_Series_SCPI_Protocol.pdf
+#            Need to slow down SALe changes to have 200 ms between changes.
+amplitude_scales = {
+    '10X': {
+        'commands': ['100V', '50.0V', '10.0V', '5.00V', '2.00V', '1.00V', '500mV', '200mV', '100mV'],
+        'values': [100, 50, 10, 5, 2, 1, 0.5, 0.2, 0.1]
+    },
+    '1X': {
+        'commands': ['10.0V', '5.00V', '2.00V', '1.00V', '500mV', '200mV', '100mV', '50.0mV', '20.0mV', '10.0mV'],
+        'values': [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01]
+    }
+}
+    
 decades_list_string = [
-    '1mHz', '1Hz', '10Hz', '100Hz', '1kHz', '10kHz', '100kHz', '1MHz', '10MHz'
+    '100mHz', '1Hz', '10Hz', '100Hz', '1kHz', '10kHz', '100kHz', '1MHz', '10MHz'
 ]
+
 decades_list = [
     1E-1, 1E0, 1E1, 1E2, 1E3, 1E4, 1E5, 1E6, 1E7
 ]
@@ -244,14 +255,15 @@ def signal_handler(sig, frame):
 # Global shutdown event for threads/processes
 shutdown_event = threading.Event()
 
-    
-def print_to_terminal(data):
+def print_to_terminal(data, color=None):
     """
-    Add text data to the terminal and auto-scroll to the end.
+    Add text data to the terminal with optional color and bold font, then auto-scroll.
     """
-    dpg.add_text(data, parent='terminal')
+    dpg.add_text(data, parent='terminal', color=color)  # Default font
+
     dpg.set_y_scroll(item='terminal', value=-1)  # Auto-scroll to the end of the window
     dpg.focus_item(item='terminal')
+
 
 def scroll_data_table():
     """
@@ -261,6 +273,7 @@ def scroll_data_table():
     dpg.focus_item(item='dataTableWindow')
 
 def oscilloscope_query(cmd):
+    global sample_delay_s
     """
     Send a command to the oscilloscope and read the response.
     Retries until a valid response is received or an exception occurs.
@@ -281,8 +294,10 @@ def oscilloscope_query(cmd):
             else:
                 return result.tobytes().decode('utf-8').strip()
         except Exception as e:
+            logging.info("Oscilloscope command sent: " + str(cmd))
             logging.info(f"Exception in getting value from oscilloscope: {e}")
             oscilloscope.reset()
+        time.sleep(sample_delay_s)
 
 def oscilloscope_write(cmd):
     """
@@ -307,83 +322,203 @@ def oscilloscope_read(cmd):
     result = oscilloscope_IN.read(read_buffer_size, read_delay_ms)
     return result
 
-def AWG_set_frequency(frequency):
+
+def sleep_with_abort(total_time, is_setup, check_interval=0.05):
     """
-    Set the Arbitrary Waveform Generator (AWG) frequency in Hz (0.1Hz to 25MHz for SINE waveform).
+    Sleep for a total of total_time seconds, but with periodic checks.
     
     Args:
-        frequency (float): The desired frequency to set.
-        
+      total_time (float): Total time to sleep in seconds.
+      is_setup (bool): Setup flag that affects the abort condition.
+      check_interval (float): Time increments for each sleep check.
+      
     Returns:
-        float: The measured frequency after adjustment.
+      bool: True if an abort condition occurred, otherwise False.
     """
-    global nWaveSamples
+    elapsed = 0.0
+    while elapsed < total_time:
+        # Abort if not recording and not in setup mode.
+        # If is_setup is True, we are allowed to continue even if recording is off.
+        if (not is_recording) and (not is_setup):
+            return True  # Abort condition met.
+        time.sleep(check_interval)
+        elapsed += check_interval
+    return False
+
+def AWG_first_set_frequency(frequency, is_setup=False):
+    """
+    Set the Arbitrary Waveform Generator (AWG) frequency in Hz (0.1Hz to 25MHz for SINE waveform).
+
+    Args:
+      frequency (float): The desired frequency to set.
+      is_setup (bool): Flag indicating if the function is in setup mode.
+
+    Returns:
+      tuple: (float measured_frequency, list PhaseList) after adjustment.
+    """
+    global sample_delay_s, horizontal_decades_n, is_recording, MaxFreqAdjust
     
     # Initialize variables
-    Chkpkpk = 2000
+    Vpkpk = 10000
     ChkFREQ = 0.0
     FreqAdjust = 0
+    PhaseNew = 0
+    PhaseList = []
     
+    # Adjust vertical scale
+    # Retrieve the appropriate amplitude scale values for the selected attenuation
+    if channel_out == 'CH2':
+        amplitude_scales_values = amplitude_scales[CH2_probe_attenuation_ratio]['values']
+        amplitude_scales_commands = amplitude_scales[CH2_probe_attenuation_ratio]['commands']
+    if channel_out == 'CH1':
+        amplitude_scales_values = amplitude_scales[CH1_probe_attenuation_ratio]['values']
+        amplitude_scales_commands = amplitude_scales[CH1_probe_attenuation_ratio]['commands']
+    # Measure frequency
+    ChkFREQ = FREQ_out_to_float(oscilloscope_query(':MEASurement:{CH}:FREQuency?'.format(CH=channel_in)))
+    CHin_amplitude_scales = get_amplitude_scale(CH1_probe_attenuation_ratio, channel_in, channel_in, amplitude_scales)
+    CHout_amplitude_scales = get_amplitude_scale(CH2_probe_attenuation_ratio, channel_out, channel_in, amplitude_scales)
+    if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+        return ChkFREQ
+    set_amplitude_scale(channel_in, CHin_amplitude_scales)
+    if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+        return ChkFREQ
+    set_amplitude_scale(channel_out, CHout_amplitude_scales)
+    if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+        return ChkFREQ
+
     # Loop to adjust frequency and minimize transient spikes
-    while (Chkpkpk > 1000 or int(ChkFREQ / 10 + 0.5) != int(frequency / 10 + 0.5)) and (int(nWaveSamples) > FreqAdjust):
+    while (int(ChkFREQ / 10 + 0.5) != int(frequency / 10 + 0.5)) and (MaxFreqAdjust > FreqAdjust):
+        # Check if the process should be aborted
+        if (not is_recording) and (not is_setup):
+            break
+
+        if (FreqAdjust) % 2 == 0:
+            oscilloscope_OUT.write(':FUNCtion:FREQuency {}'.format(frequency))
         FreqAdjust += 1
-        oscilloscope_OUT.write(':FUNCtion:FREQuency {}'.format(frequency))
-        
-        # Allow time for frequency change to settle
-        time.sleep(2 * sample_delay_s)
 
-        # Pre-measurement to adjust ranges
-        current_v_scale = vertical_scale_to_float(oscilloscope_query(':{}:SCALe?'.format(channel_out)))
-        current_h_scale = horizontal_scale_to_float(oscilloscope_query(':HORIzontal:SCALe?'))
-        
-        # Compute the time range for the waveform acquisition
-        raw_frequencies_x = np.linspace(-(horizontal_decades_n * current_h_scale), 
-                                        (horizontal_decades_n * current_h_scale), 
-                                        300)  # Constant x size of 300 points
-        
-        # Get waveform data from the output channel
-        list_of_out_arrays = []
-        for _ in range(nWaveSamples):
-            raw_waveform_out = get_waveform(channel_out, current_v_scale)
-            list_of_out_arrays.append(raw_waveform_out)
+        # Allow time for frequency change to settle using our abortable sleep
+        if sleep_with_abort(FreqAdjust * sample_delay_s, is_setup):
+            break
 
-        # Average the collected waveforms
-        raw_waveform_out = average_sinusoidal_arrays(list_of_out_arrays)
-        Vpkpk_from_curve = peak_to_peak(raw_waveform_out)
-        Vpkpk_measured = vertical_scale_to_float(get_pkpk_voltage(channel_out))
-        
-        # Determine the peak-to-peak voltage
-        if Vpkpk_measured == np.nan:
-            Vpkpk = Vpkpk_from_curve if Vpkpk_from_curve != np.nan else 0
-        elif Vpkpk_from_curve == np.nan:
-            Vpkpk = Vpkpk_measured
-        else:
-            Vpkpk = (Vpkpk_from_curve + Vpkpk_measured) / 2
-
-        # Adjust vertical scale
-        if Vpkpk < 0.05:
-            closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (3 * Vpkpk * vertical_scaling_factor))))
-        elif Vpkpk < 0.1:
-            closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (2.5 * Vpkpk * vertical_scaling_factor))))
-        elif Vpkpk < 0.2:
-            closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (2 * Vpkpk * vertical_scaling_factor))))
-        elif Vpkpk < 0.3:
-            closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (1.5 * Vpkpk * vertical_scaling_factor))))
-        else:
-            closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (Vpkpk * vertical_scaling_factor))))
-
+        Vpkpk = vertical_scale_to_float(get_pkpk_voltage(channel_out))
+        closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (Vpkpk * vertical_scaling_factor))))
         set_amplitude_scale(channel_out, amplitude_scales_commands[closest_v_scale_index])
-
+        if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+            break
+        
+        Vpkpk = vertical_scale_to_float(get_pkpk_voltage(channel_out))
+        closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (Vpkpk * vertical_scaling_factor))))
+        set_amplitude_scale(channel_out, amplitude_scales_commands[closest_v_scale_index])
+        if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+            break        
+    
         # Adjust horizontal scale
         closest_h_scale_index = time_bases_values.index(min(time_bases_values, key=lambda x: abs(x - ((1 / frequency) * horizontal_scaling_factor))))
         set_time_base(time_bases_commands[closest_h_scale_index])
-
+        if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+            break
+        
         # Measure frequency
         ChkFREQ = FREQ_out_to_float(oscilloscope_query(':MEASurement:{CH}:FREQuency?'.format(CH=channel_in)))
-        Chkpkpk = Vpkpk_from_curve
-
-    # Return the final measured frequency
+        #if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup):
+        #    break
+            
+    # Return the final measured frequency and phase list
     return ChkFREQ
+
+
+def AWG_set_frequency(frequency, is_setup=False):
+    """
+    Set the Arbitrary Waveform Generator (AWG) frequency in Hz (0.1Hz to 25MHz for SINE waveform).
+
+    Args:
+      frequency (float): The desired frequency to set.
+      is_setup (bool): Flag indicating if the function is in setup mode.
+
+    Returns:
+      tuple: (float measured_frequency, list PhaseList) after adjustment.
+    """
+    global sample_delay_s, horizontal_decades_n, is_recording, MaxFreqAdjust
+    
+    # Initialize variables
+    Vpkpk = 10000
+    ChkFREQ = 0.0
+    FreqAdjust = 0
+    PhaseNew = 0
+    PhaseList = []
+    
+    # Adjust vertical scale
+    # Retrieve the appropriate amplitude scale values for the selected attenuation
+    if channel_out == 'CH2':
+        amplitude_scales_values = amplitude_scales[CH2_probe_attenuation_ratio]['values']
+        amplitude_scales_commands = amplitude_scales[CH2_probe_attenuation_ratio]['commands']
+    if channel_out == 'CH1':
+        amplitude_scales_values = amplitude_scales[CH1_probe_attenuation_ratio]['values']
+        amplitude_scales_commands = amplitude_scales[CH1_probe_attenuation_ratio]['commands']
+
+    # Loop to adjust frequency and minimize transient spikes
+    while (int(ChkFREQ / 10 + 0.5) != int(frequency / 10 + 0.5)) and (MaxFreqAdjust > FreqAdjust):
+        # Check if the process should be aborted
+        if (not is_recording) and (not is_setup):
+            break
+
+        if (FreqAdjust) % 2 == 0:
+            oscilloscope_OUT.write(':FUNCtion:FREQuency {}'.format(frequency))
+        FreqAdjust += 1
+
+        # Allow time for frequency change to settle using our abortable sleep
+        if sleep_with_abort(FreqAdjust * sample_delay_s, is_setup):
+            break
+
+        Vpkpk = vertical_scale_to_float(get_pkpk_voltage(channel_out))
+        closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (Vpkpk * vertical_scaling_factor))))
+        set_amplitude_scale(channel_out, amplitude_scales_commands[closest_v_scale_index])
+        if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+            break     
+        
+        Vpkpk = vertical_scale_to_float(get_pkpk_voltage(channel_out))
+        closest_v_scale_index = amplitude_scales_values.index(min(amplitude_scales_values, key=lambda x: abs(x - (Vpkpk * vertical_scaling_factor))))
+        set_amplitude_scale(channel_out, amplitude_scales_commands[closest_v_scale_index])
+        if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+            break        
+    
+        # Adjust horizontal scale
+        closest_h_scale_index = time_bases_values.index(min(time_bases_values, key=lambda x: abs(x - ((1 / frequency) * horizontal_scaling_factor))))
+        set_time_base(time_bases_commands[closest_h_scale_index])
+        if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup): 
+            break
+        
+        # Measure frequency
+        ChkFREQ = FREQ_out_to_float(oscilloscope_query(':MEASurement:{CH}:FREQuency?'.format(CH=channel_in)))
+        #if sleep_with_abort(sample_delay_s * FreqAdjust, is_setup):
+        #    break
+
+        # If conditions are met, perform the full sine analysis
+        if int(ChkFREQ / 10 + 0.5) == int(frequency / 10 + 0.5):
+            current_v_scaleout = vertical_scale_to_float(oscilloscope_query(':{}:SCALe?'.format(channel_out)))
+            if sleep_with_abort(sample_delay_s, is_setup):
+                break
+            current_v_scalein = vertical_scale_to_float(oscilloscope_query(':{}:SCALe?'.format(channel_in)))
+            if sleep_with_abort(sample_delay_s, is_setup):
+                break
+            raw_waveform_in = get_waveform(channel_in, current_v_scalein)
+            if sleep_with_abort(sample_delay_s, is_setup):
+                break
+            raw_waveform_out = get_waveform(channel_out, current_v_scaleout)
+            if sleep_with_abort(sample_delay_s, is_setup):
+                break
+            current_h_scale = horizontal_scale_to_float(oscilloscope_query(':HORIzontal:SCALe?'))
+            # Compute full sine analysis (FSA)
+            sampling_PERIOD = 1 / (current_h_scale / (300 / (horizontal_decades_n * 2)))
+            FSA = full_sin_analysis(sampling_PERIOD, FTTcorection, raw_waveform_in, raw_waveform_out)
+            PhaseNew = FSA['phase_difference_degrees']
+            PhaseList.append(PhaseNew)
+        logging.info("sample_delay_s * FreqAdjust: {}".format(sample_delay_s * FreqAdjust))
+
+            
+    # Return the final measured frequency and phase list
+    return ChkFREQ, PhaseList
+
 def set_time_base(period):
     """
     Set the oscilloscope time-base.
@@ -394,6 +529,8 @@ def set_time_base(period):
     oscilloscope_OUT.write(':HORizontal:SCALe {}'.format(period))
 
 def set_amplitude_scale(channel, scale):
+    channel = str(channel)
+    scale = str(scale)
     """
     Set the oscilloscope amplitude scale.
     
@@ -417,24 +554,31 @@ def get_pkpk_voltage(channel):
 
 def vertical_scale_to_float(voltage):
     """
-    Convert the vertical scale voltage reading to a float.
-    
+    Convert the vertical scale voltage reading to a float (in volts).
+
     Args:
-        voltage (str): The voltage reading as a string.
-        
+        voltage (str): The voltage reading as a string with units (e.g., "500mV", "500uV", "500µV", or "0.5V").
+
     Returns:
-        float: The converted voltage as a float, scaled if necessary.
+        float: The converted voltage in volts, scaled as appropriate.
     """
+    # Extract the numeric part from the voltage string
+    match = re.search(r"[-+]?\d*\.?\d+", voltage)
+    if not match:
+        return None
+    value = float(match.group(0))
+    
+    # Check for units and convert accordingly
     if 'mV' in voltage:
-        match = re.search(r"[-+]?\d*\.?\d+", voltage)
-        if match:
-            return float(match.group(0)) / 1E3
-        return None
+        # millivolts: convert to volts (1mV = 1E-3 V)
+        return value / 1E3
+    elif 'uV' in voltage or 'µV' in voltage:
+        # microvolts: convert to volts (1uV = 1E-6 V)
+        return value / 1E6
     else:
-        match = re.search(r"[-+]?\d*\.?\d+", voltage)
-        if match:
-            return float(match.group(0))
-        return None
+        # If no unit is specified, assume the value is already in volts
+        return value
+
 
 def horizontal_scale_to_float(timescale):
     """
@@ -501,6 +645,7 @@ def get_waveform(channel, v_scale):
     Returns:
         list: The waveform data points scaled appropriately.
     """
+
     # The first 4 bytes are discarded; in total, there are 600 points.
     rawdata = oscilloscope_read(':DATA:WAVE:SCREen:{}?'.format(channel))
     data_points = []
@@ -533,8 +678,10 @@ def stop_callback(sender, app_data, user_data):
     is_playing = False
     is_paused = False
     is_recording = False
+    dpg.bind_item_theme('Stop', 'YellowButton')
     dpg.configure_item('Play', label='Play')
 
+    
 def speed_slider_callback(sender, app_data, user_data):
     global play_speed
     play_speed = app_data
@@ -627,13 +774,37 @@ def search_oscilloscope():
              # Delete the variable
              del globals()['oscilloscope_OUT']
 
+def get_amplitude_scale(probe_attenuation_ratio, channel, channel_in, amplitude_scales):
+    # Define a mapping for each channel and ratio to the corresponding index
+    if channel_in == 'CH1':
+        mapping = {
+            ('CH1', '1X'): 4,
+            ('CH2', '1X'): 5,
+            ('CH1', '10X'): 6,
+            ('CH2', '10X'): 7,
+        }
+    if channel_in == 'CH2':
+        mapping = {
+            ('CH1', '1X'): 5,
+            ('CH2', '1X'): 4,
+            ('CH1', '10X'): 7,
+            ('CH2', '10X'): 6,
+        }
+    try:
+        index = mapping[(channel, probe_attenuation_ratio)]
+    except KeyError:
+        raise ValueError(f"Invalid combination: {channel} with attenuation {probe_attenuation_ratio}")
+
+    return amplitude_scales[probe_attenuation_ratio]['commands'][index]
+
 def setup_oscilloscope():
     """
     Configure the OWON HDS320S Handheld Oscilloscope and Arbitrary Waveform Generator (AWG).
 
     This function performs general device configuration, sets up channels, and initializes the AWG.
     """
-    global LogFile, JSONLogFile
+    global LogFile, JSONLogFile, channel_in, channel_out
+    global CH1_amplitude_scales, CH2_amplitude_scales
 
     # Programmatically select the "Terminal" tab
     select_tab('terminal_tab')
@@ -659,7 +830,7 @@ def setup_oscilloscope():
     print_to_terminal('Channel 1 probe attenuation ratio: ' + oscilloscope_query(':{CH}:PROBe?'.format(CH='CH1')).upper())
     oscilloscope_write(':{CH}:PROBe {data}'.format(CH='CH2', data=CH2_probe_attenuation_ratio))
     print_to_terminal('Channel 2 probe attenuation ratio: ' + oscilloscope_query(':{CH}:PROBe?'.format(CH='CH2')).upper())
-
+    
     # Turn on frequency and amplitude peak-to-peak measurements
     oscilloscope_write(':MEASurement:DISPlay ON')
 
@@ -671,7 +842,21 @@ def setup_oscilloscope():
     oscilloscope_write(':ACQuire:DEPMEM {}'.format(DEPMEM))
     print_to_terminal('Memory depth: ' + oscilloscope_query(':ACQuire:DEPMEM?').upper())
 
+
+    oscilloscope_write(':TRIGger:SINGle:SWEEp AUTO')
+    oscilloscope_write(':TRIGger:SINGLe:SOURce {CH}'.format(CH=channel_in))
+    oscilloscope_write(':TRIGger:SINGle:COUPling AC')
+
     # Set the trigger to rising edge, VERY IMPORTANT!
+    EdgeValue = oscilloscope_query(':TRIGger:SINGle:EDGe?')
+    if EdgeValue == 'RISE':
+        print_to_terminal('TRIGer EDGe: RISE', color=[0, 255, 0])  # Green
+    elif EdgeValue == 'FALL':
+        print_to_terminal('TRIGer EDGe: FALL', color=[255, 102, 102])  # Red
+    else:
+        print_to_terminal(f'TRIGer EDGe: {EdgeValue}', color=[255, 255, 255])  # Default (white)
+
+    print_to_terminal('TRIGer STATus: ' + oscilloscope_query(':TRIGger:STATus?'))
 
     # Setup the AWG
     print_to_terminal('\n --- AWG configurations --- \n')
@@ -695,19 +880,45 @@ def setup_oscilloscope():
     # Set the waveform offset to zero
     oscilloscope_write(':FUNCtion:OFFSet 0')
     print_to_terminal('Waveform offset: ' + str(float(str(oscilloscope_query(':FUNCtion:OFFSet?'))[0:8])) + 'V\n')
-    print_to_terminal('Now adjust both the vertical and horizontal scales before performing any measurement...')
+    print_to_terminal('Now adjust both the vertical and horizontal scales...')
 
+    # Set the vertical offset of both channels to zero
+    oscilloscope_write(':CH1:OFFSet 0')
+    oscilloscope_write(':CH2:OFFSet 0')
+    
     # Turn on the device at the correct initial range
     oscilloscope_write(':{CH}:DISPlay ON'.format(CH='CH1'))
     oscilloscope_write(':{CH}:DISPlay ON'.format(CH='CH2'))
     oscilloscope_write(':CHANnel ON')
-    AWG_set_frequency(decades_list[start_decade])
+    
+    CHin_amplitude_scales = get_amplitude_scale(CH1_probe_attenuation_ratio, channel_in, channel_in, amplitude_scales)
+    CHout_amplitude_scales = get_amplitude_scale(CH2_probe_attenuation_ratio, channel_out, channel_in, amplitude_scales)
+   
+    time.sleep(sample_delay_s)
+    set_amplitude_scale(channel_in, CHin_amplitude_scales)
+    time.sleep(sample_delay_s)
+    set_amplitude_scale(channel_out, CHout_amplitude_scales)
+    time.sleep(sample_delay_s)
+    channel_in_scale = oscilloscope_query(':{}:SCALe?'.format(channel_in))
+    channel_out_scale = oscilloscope_query(':{}:SCALe?'.format(channel_out))
+
+    print_to_terminal("channel_in: " + channel_in + " CHin_amplitude_scales: " + str(CHin_amplitude_scales))
+    print_to_terminal("channel_out: " + channel_out + " CHout_amplitude_scales: " + str(CHout_amplitude_scales))
+    
+    AWG_first_set_frequency(decades_list[start_decade], True)
+
     MeasurementFREQ = oscilloscope_query(':MEASurement:{CH}:FREQuency?'.format(CH=channel_in))
     print_to_terminal('Channel out FREQuency: ' + MeasurementFREQ + " Calculate Value: " + str(round(FREQ_out_to_float(MeasurementFREQ), 0)) + '\n')
 
+
+
+    
     if round(FREQ_out_to_float(MeasurementFREQ), 0) < 0.1:
-        print_to_terminal('Issue with calculated channel out FREQuency.')
-        print_to_terminal('Recommend pressing Auto button on the HDS320S.')
+        print_to_terminal('Issue with calculated channel out FREQuency.', color=[255, 102, 102])
+        print_to_terminal('Recommend pressing Auto button on the HDS320S.', color=[255, 102, 102])
+    elif EdgeValue == 'FALL':
+        print_to_terminal('Issue Trigger is set to FALL needs to be set to RISE.', color=[255, 102, 102])
+        print_to_terminal('Recommend pressing Trig -> F4 -> F1 to set to RISE.', color=[255, 102, 102])
     else:
         # Enable measurement button
         dpg.configure_item(item='START_MEASURE', enabled=True)
@@ -733,8 +944,8 @@ def setup_oscilloscope():
 def start_mesurement():
     global LogFile, JSONLogFile, nWaveSamples, FTTcorection, is_recording
     global magnitude_phase_conn, magnitude_phase_socket
-    global xy_conn, xy_oscilloscope_socket, FixStartPhaseOffSet
-    global fft_oscilloscope_conn, fft_oscilloscope_socket
+    global xy_conn, xy_oscilloscope_socket
+    global fft_oscilloscope_conn, fft_oscilloscope_socket, addpm
     global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
     global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event
     global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope
@@ -750,7 +961,7 @@ def start_mesurement():
     magnitude_phase_conn = None
     fft_oscilloscope_conn = None
     xy_conn = None
-    
+    dpg.bind_item_theme('START_MEASURE', 'YellowButton')
     
     
     try:
@@ -781,7 +992,7 @@ def start_mesurement():
             plot_manager_fft_oscilloscope.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
 
  
-            timeout_duration = 120  # seconds
+            timeout_duration = 180  # seconds
 
             # Create a list of your events that need to be signaled
             events = [magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event]
@@ -832,7 +1043,18 @@ def start_mesurement():
             processing_start_mesurement_threaded.start()
     except Exception as e:
         logging.error(f"Error in start_mesurement: {e}")
-            
+
+def choose_phase(candidate_phase, current_phase, threshold):
+    """Return candidate_phase if its difference from current_phase is below threshold, else None."""
+    return candidate_phase if abs(candidate_phase - current_phase) < threshold else None
+
+def is_between(val, bound1, bound2):
+    """Checks whether val is between bound1 and bound2 (inclusive), regardless of their order."""
+    if bound1 <= bound2:
+        return bound1 <= val <= bound2
+    else:
+        return bound2 <= val <= bound1
+
 def start_mesurement_threaded(plot_win_disposition,
                               magnitude_phase_conn, 
                               fft_oscilloscope_conn, xy_conn):
@@ -841,15 +1063,9 @@ def start_mesurement_threaded(plot_win_disposition,
     
     This function handles the UI setup, data clearing, and measurement initiation.
     """
-    global LogFile, JSONLogFile, nWaveSamples, FTTcorection, is_recording, FixStartPhaseOffSet
+    global LogFile, JSONLogFile, nWaveSamples, FTTcorection, is_recording, addpm, sample_delay_s
     
     OKrun = True
-
-    initial_evaluation_count = 5
-    threshold = 15
-    weights = np.array([0.1, 0.15, 0.2, 0.25, 0.3])
-
-    processor = PhaseDiffProcessor(initial_evaluation_count, threshold, weights)
                                    
     # Programmatically select the "Data Table" tab
     select_tab('data_table_tab')
@@ -871,14 +1087,14 @@ def start_mesurement_threaded(plot_win_disposition,
         'START_DEC', 'STOP_DEC', 'POINT_SCALE_COEFF',
         'V_SCALE_COEFF', 'H_SCALE_COEFF', 'OSCILL_TIMEOUT', 'CODE_EXEC_PAUSE',
         'WIN_THEME', 'SEARCH_OSCILLOSCOPE', 'START_MEASURE', 'JSONLOGFILEtag',
-        'SAMPLE_WAVES', 'FFToffset', 'FIXSTARTPHASE'
+        'SAMPLE_WAVES', 'FFToffset'
     ]
     # if platform.system() != 'Windows':
     control_items.append('PLOT_WIN_SETTING')
 
     for item in control_items:
         dpg.configure_item(item=item, enabled=False)
-    dpg.bind_item_theme('START_MEASURE', 'DisabledButton')
+    # dpg.bind_item_theme('START_MEASURE', 'DisabledButton')
     dpg.bind_item_theme('JSONLOGFILEtag', 'DisabledButton')
     
     # Clear all the data containers
@@ -920,7 +1136,7 @@ def start_mesurement_threaded(plot_win_disposition,
     
         # Cleanup old data from table in GUI
         dpg.delete_item(item='DataTable')
-        with dpg.table(parent='dataTableWindow', header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, width=setting_window_width - 10, height=340, freeze_rows=1,
+        with dpg.table(parent='dataTableWindow', header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, width=setting_window_width - 5, height=318, freeze_rows=1,
                        scrollY=True, scrollX=False, borders_outerH=True, borders_innerV=True, borders_innerH=True, borders_outerV=True, tag='DataTable'):
             dpg.add_table_column(label="Frequency")
             dpg.add_table_column(label="MeasFreq")
@@ -935,16 +1151,33 @@ def start_mesurement_threaded(plot_win_disposition,
         # Open output CSV file for data writes.
         f = open(LogFile,'w')
         f.write('Frequency,MeasFreq,VpkpkMeter,Phase,"FFT Hz","FFT Meg"\n') 
- 
+       
         # Measurement loop
+        # PhaseLast is defined and initialized before entering the loop to zero.
+        PhaseLast = 0
+        sign = 1
+        deltas = deque(maxlen=3)  # Track the last 3 deltas
+        dpg.bind_item_theme('START_MEASURE', 'DisabledButton')
+        FreqAdjustOffset = 0
+        AWG_first_set_frequency(raw_frequencies_range[0])
+        
         for index, frequency in enumerate(raw_frequencies_range):
-            if is_recording == False:
+            # Stop-measurement check
+            if not is_recording:
                 break
-            # Set the current test frequency
-            MeasurementFREQ = AWG_set_frequency(frequency)
- 
-            # Ask for the current vertical and horizontal scale (only the first time)
-            current_v_scale = vertical_scale_to_float(oscilloscope_query(':{}:SCALe?'.format(channel_out)))
+            PhaseList = []
+            # Set the target frequency once
+            MeasurementFREQ, NewPhases = AWG_set_frequency(frequency)
+            PhaseList.extend(NewPhases)
+            if index == 0 and PhaseLast == 0:
+                if len(PhaseList) != 0:
+                    PhaseLast = sum(PhaseList) / len(PhaseList)
+            
+            # ---------------------------
+            # PERFORM MEASUREMENT
+            # ---------------------------
+            # Query current scales
+            current_v_scaleout = vertical_scale_to_float(oscilloscope_query(':{}:SCALe?'.format(channel_out)))
             current_v_scalein = vertical_scale_to_float(oscilloscope_query(':{}:SCALe?'.format(channel_in)))
             current_h_scale = horizontal_scale_to_float(oscilloscope_query(':HORIzontal:SCALe?'))
             # Compute the time range for the waveform acquisition
@@ -958,9 +1191,7 @@ def start_mesurement_threaded(plot_win_disposition,
                     raw_waveform_in = get_waveform(channel_in, current_v_scalein)
                     readPk = peak_to_peak(raw_waveform_in)
                 list_of_in_arrays.append(raw_waveform_in)
-                # logging.info("READin: ", peak_to_peak(raw_waveform_in))
             raw_waveform_in = average_sinusoidal_arrays(list_of_in_arrays)
-            # logging.info("READin AVG: ", peak_to_peak(raw_waveform_in))
             sampling_PERIOD = 1 / (current_h_scale / (300 / (horizontal_decades_n * 2)))            
             raw_frequencies_x_in = []
             for timestep in range(len(raw_waveform_in)):
@@ -973,51 +1204,84 @@ def start_mesurement_threaded(plot_win_disposition,
                 attempts = 0
                 max_attempts = 3
                 while readPk == 0 and attempts < max_attempts:
-                    raw_waveform_out = get_waveform(channel_out, current_v_scale)
+                    raw_waveform_out = get_waveform(channel_out, current_v_scaleout)
                     readPk = peak_to_peak(raw_waveform_out)
                     attempts += 1
                 list_of_out_arrays.append(raw_waveform_out)
-                # logging.info("READout: ", peak_to_peak(raw_waveform_out))
             raw_waveform_out = average_sinusoidal_arrays(list_of_out_arrays)
-            # logging.info("READout AVG: ", peak_to_peak(raw_waveform_out))
             raw_frequencies_x_out = []
             for timestep in range(len(raw_waveform_out)):
                 raw_frequencies_x_out.append(timestep * sampling_PERIOD)
-
+            
+            # Compute full sine analysis (FSA)
             FSA = full_sin_analysis(sampling_PERIOD, FTTcorection, raw_waveform_in, raw_waveform_out)
             FFT_freq = FSA["fft_frequencies"][:len(FSA["fft_frequencies"]) // 2]
             FFT_result = FSA["amplitude_db_signal2"][:len(FSA["fft_frequencies"]) // 2]
             FFT_max = FSA['max_amplitude_db_signal2']
             FFT_maxfreq = FSA['angular_frequency_signal2'] / (2 * np.pi)
-  
-            Phase_Diff_degree = FSA['phase_difference_degrees']
             
-            # 2025/04/18 Hack set just the first initial_evaluation_count values to be positive
-            if abs(FixStartPhaseOffSet) >= index:
-                if FixStartPhaseOffSet < 0:
-                    Phase_Diff_degree = - abs(Phase_Diff_degree)
-                if FixStartPhaseOffSet > 0:
-                    Phase_Diff_degree = abs(Phase_Diff_degree)
+            # Attempt candidate phases in a prioritized list.
+            # Candidate 1: Direct FFT measurement.
+            candidate_fft = FSA['phase_difference_degrees']
+            new_phase = choose_phase(candidate_fft, PhaseLast, addpm)
             
-            sign = processor.process_phase_diff(Phase_Diff_degree)
-            if sign is not None:
-                if sign > 0:
-                    Phase_Diff_degree = abs(Phase_Diff_degree)
+            # Candidate 2: Zero-cross measurement (after normalizing).
+            if new_phase is None:
+                candidate_zero_cross = normalize_phase(FSA['average_delta_time'] * MeasurementFREQ * 360)
+                new_phase = choose_phase(candidate_zero_cross, PhaseLast, addpm)
+                
+            # Candidate 3: Average phase from PhaseList if available.
+            if new_phase is None and PhaseList:
+                if len(PhaseList) >= 2:
+                    candidate_avg = (PhaseList[-1] + PhaseList[-2]) / 2.0
                 else:
-                    Phase_Diff_degree = -abs(Phase_Diff_degree)
+                    candidate_avg = PhaseList[-1]
+                new_phase = choose_phase(candidate_avg, PhaseLast, addpm)
+
+            # Fallback logic: if no candidate was acceptable from current measurement.
+            if new_phase is None:
+                # Safely get the next frequency from raw_frequencies_range
+                next_frequency = raw_frequencies_range[index + 1] if (index + 1) < len(raw_frequencies_range) else None
+                if next_frequency is not None:
+                    # Measure the next frequency (using the same AWG_set_frequency call)
+                    MeasurementFREQ_next, NextNewPhases = AWG_set_frequency(next_frequency)
+                    if NextNewPhases:
+                        if len(PhaseList) >= 2:
+                            next_candidate_avg = (NextNewPhases[-1] + NextNewPhases[-2]) / 2.0
+                        else:
+                            next_candidate_avg = NextNewPhases[-1]
+                        # Check if the current fallback (candidate_fft) lies between PhaseLast and the next candidate average.
+                        if is_between(candidate_fft, PhaseLast, next_candidate_avg):
+                            new_phase = candidate_fft
+                        else:
+                            # Split the difference between PhaseLast and the next candidate average.
+                            new_phase = (PhaseLast + next_candidate_avg) / 2.0
+                    else:
+                        new_phase = candidate_fft  # Fallback to candidate_fft if no NextNewPhases
+                else:
+                    new_phase = candidate_fft  # Use candidate_fft if there's no next frequency
             
+            # Update PhaseLast and Phase_Diff_degree based on selected candidate.
+            PhaseLast = new_phase
+            Phase_Diff_degree = new_phase
+
             # --- Update after data read from oscilloscope ---
-            OSCvRange = 0.5
-            OSCvRange1 = 0.5
-            OSCvRange2 = 0.5
-            DMrangeV1 = oscilloscope_query(':CH1:SCALe?')
-            DMrangeV2 = oscilloscope_query(':CH2:SCALe?')
-            for Voffset in range(len(amplitude_scales_commands)):
-                if DMrangeV1 == amplitude_scales_commands[Voffset]:
-                    OSCvRange1 = amplitude_scales_values[Voffset]
-                if DMrangeV2 == amplitude_scales_commands[Voffset]:
-                    OSCvRange2 = amplitude_scales_values[Voffset]
-            OSCvRange = max(OSCvRange1, OSCvRange2)
+            OSCvRange = 1
+            OSCvRange1 = 1
+            OSCvRange2 = 1
+            
+            VpkpkMeterOut = vertical_scale_to_float(get_pkpk_voltage(channel_out))
+            VpkpkMeterIn = vertical_scale_to_float(get_pkpk_voltage(channel_in))
+
+            # Optionally handle the case where a command wasn't found
+            if VpkpkMeterOut is None or VpkpkMeterIn is None:
+                logging.warning(
+                    "One of the DMrange values was not found in amplitude_scales_commands: VpkpkMeterIn=%s, VpkpkMeterOut=%s",
+                    VpkpkMeterIn,
+                    VpkpkMeterOut
+                )
+            else:
+                OSCvRange = max(VpkpkMeterIn, VpkpkMeterOut)
              
             graph_processing(OSCvRange,
                              FFT_maxfreq,
@@ -1029,20 +1293,17 @@ def start_mesurement_threaded(plot_win_disposition,
                              raw_frequencies_x_out,
                              raw_waveform_out)                   
             
-            VpkpkMeter = vertical_scale_to_float(get_pkpk_voltage(channel_out))
-            VpkpkMeterIn = vertical_scale_to_float(get_pkpk_voltage(channel_in))
+
             if VpkpkMeterIn > 0:          
-                gY = (20 * np.log10(VpkpkMeter / VpkpkMeterIn)) if VpkpkMeter > 0 else float('-inf')
+                gY = (20 * np.log10(VpkpkMeterOut / VpkpkMeterIn)) if VpkpkMeterOut > 0 else float('-inf')
             else:
-                gY = (20 * np.log10(VpkpkMeter / waveform_amplitude_V)) if VpkpkMeter > 0 else float('-inf')
+                gY = (20 * np.log10(VpkpkMeterOut / waveform_amplitude_V)) if VpkpkMeterOut > 0 else float('-inf')
             gX = MeasurementFREQ
             pY = Phase_Diff_degree
             pX = frequency
             
             graph_processing_Bode(gX, gY, pX, pY)
-           
-           
-           
+
             # Convert the array to a list
             list_FFT_freq = check_and_convert_to_list(FFT_freq)
             list_FFT_result = check_and_convert_to_list(FFT_result)          
@@ -1060,7 +1321,7 @@ def start_mesurement_threaded(plot_win_disposition,
                             "raw_waveform_in": list_raw_waveform_in,
                             "raw_frequencies_x_out": list_raw_frequencies_x_out,
                             "raw_waveform_out": list_raw_waveform_out,
-                            "VpkpkMeter": VpkpkMeter,
+                            "VpkpkMeter": VpkpkMeterOut,
                             "gX": gX,
                             "gY": gY,
                             "pX": pX,
@@ -1072,23 +1333,13 @@ def start_mesurement_threaded(plot_win_disposition,
                     # Send data to Magnitude/Phase PlotManager socket
                     if all(key in data[frequency] and data[frequency][key] is not None for key in ['gX', 'gY', 'pX', 'pY']):
                         try:
-                            """
-                            payload = json.dumps({
-                                "gain_X": data[frequency]['gX'],
-                                "gain_Y": data[frequency]['gY'],
-                                "phase_X": data[frequency]['pX'],
-                                "phase_Y": data[frequency]['pY']
-                            })
-                            """
                             payload = json.dumps({
                                 "gain_X": round(data[frequency]['gX']),  # Single value, rounded to whole number
                                 "gain_Y": round(data[frequency]['gY'], 4),  # Single value, rounded to 4 decimal places
                                 "phase_X": round(data[frequency]['pX']),  # Single value, rounded to whole number
                                 "phase_Y": round(data[frequency]['pY'], 4)  # Single value, rounded to 4 decimal places
                             })
-                            # magnitude_phase_conn.sendall(payload.encode('utf-8'))
-                            # magnitude_phase_conn.sendall(b"<END>")
-                            
+
                             # Split serialized data into chunks and send
                             for start in range(0, len(payload), 2560):  # Ensure `range` is not shadowed
                                 chunk = payload[start:start+2560]
@@ -1105,18 +1356,6 @@ def start_mesurement_threaded(plot_win_disposition,
                     # Send data to FFT Oscilloscope PlotManager socket
                     if all(key in data[frequency] and data[frequency][key] is not None for key in ['FFT_maxfreq', 'FFT_max', 'FFT_freq', 'FFT_result', 'raw_frequencies_x_in', 'raw_waveform_in', 'raw_frequencies_x_out', 'raw_waveform_out']):
                         try:
-                            """
-                            payload = json.dumps({
-                                "FFTxMax": data[frequency]['FFT_maxfreq'],
-                                "FFTmaxVal": data[frequency]['FFT_max'],
-                                "FFTx": data[frequency]['FFT_freq'],
-                                "FFTy": data[frequency]['FFT_result'],
-                                "OSCxin": data[frequency]['raw_frequencies_x_in'],
-                                "OSCyin": data[frequency]['raw_waveform_in'],
-                                "OSCxout": data[frequency]['raw_frequencies_x_out'],
-                                "OSCyout": data[frequency]['raw_waveform_out']
-                            })
-                            """
                             payload = json.dumps({
                                 "FFTxMax": round(data[frequency]['FFT_maxfreq']),  # No decimals
                                 "FFTmaxVal": round(data[frequency]['FFT_max'], 4),  # Round to whole number
@@ -1127,9 +1366,6 @@ def start_mesurement_threaded(plot_win_disposition,
                                 "OSCxout": [round(x) for x in data[frequency]['raw_frequencies_x_out']],  # Round to 4 decimals
                                 "OSCyout": [round(y, 4) for y in data[frequency]['raw_waveform_out']]  # Round each element to whole numbers
                             })
-                                                                        
-                            # fft_oscilloscope_conn.sendall(payload.encode('utf-8'))
-                            # fft_oscilloscope_conn.sendall(b"<END>")
                             
                             # Split serialized data into chunks and send
                             for start in range(0, len(payload), 32768):  # Ensure `range` is not shadowed
@@ -1144,18 +1380,10 @@ def start_mesurement_threaded(plot_win_disposition,
                     # Send data to XY Oscilloscope PlotManager socket
                     if all(key in data[frequency] and data[frequency][key] is not None for key in ['raw_waveform_in', 'raw_waveform_out']):
                         try:
-                            """
-                            payload = json.dumps({
-                                "raw_waveform_in": data[frequency]['raw_waveform_in'],
-                                "raw_waveform_out": data[frequency]['raw_waveform_out']
-                            })
-                            """
                             payload = json.dumps({
                                 "raw_waveform_in": [round(value, 4) for value in data[frequency]['raw_waveform_in']],  # Round to 4 decimal places
                                 "raw_waveform_out": [round(value, 4) for value in data[frequency]['raw_waveform_out']]  # Round to 4 decimal places
                             })
-                            # xy_conn.sendall(payload.encode('utf-8'))
-                            # xy_conn.sendall(b"<END>")
                             
                             # Split serialized data into chunks and send
                             for start in range(0, len(payload), 20480):  # Ensure `range` is not shadowed
@@ -1172,7 +1400,7 @@ def start_mesurement_threaded(plot_win_disposition,
             with dpg.table_row(parent='DataTable'):
                 dpg.add_text(str(int(round(pX, 0))))
                 dpg.add_text(str(int(round(gX, 0))))
-                dpg.add_text(str(round(VpkpkMeter, 3)))
+                dpg.add_text(str(round(VpkpkMeterOut, 3)))
                 dpg.add_text(str(round(pY, 3)))
                 dpg.add_text(str(int(round(FFT_maxfreq, 0))))
                 dpg.add_text(str(round(FFT_max, 2)))
@@ -1186,7 +1414,7 @@ def start_mesurement_threaded(plot_win_disposition,
             f.write(",")
             f.write(str(int(round(gX, 0))))
             f.write(",")
-            f.write(str(round(VpkpkMeter, 3)))
+            f.write(str(round(VpkpkMeterOut, 3)))
             f.write(",")
             # f.write(str(round(OrgPhaseCal, 3)))
             f.write(str(round(pY, 3)))
@@ -1201,6 +1429,10 @@ def start_mesurement_threaded(plot_win_disposition,
         print_to_terminal('HDS320S failed to complete the Measurements...')
         OKrun = False
        
+    # Reset Frequency of Oscilloscope
+    AWG_first_set_frequency(decades_list[start_decade], True)
+    # oscilloscope_OUT.write(':FUNCtion:FREQuency {}'.format(decades_list[start_decade]))
+    
     # Re-enable all the control elements
     control_items = [
         'CH_IN', 'CH_OUT', 'CH1_ATTENUATION_RATIO', 'CH2_ATTENUATION_RATIO',
@@ -1209,7 +1441,7 @@ def start_mesurement_threaded(plot_win_disposition,
         'START_DEC', 'STOP_DEC', 'POINT_SCALE_COEFF',
         'V_SCALE_COEFF', 'H_SCALE_COEFF', 'OSCILL_TIMEOUT', 'CODE_EXEC_PAUSE',
         'WIN_THEME', 'SEARCH_OSCILLOSCOPE', 'JSONLOGFILEtag',
-        'SAMPLE_WAVES', 'FFToffset', 'FIXSTARTPHASE'
+        'SAMPLE_WAVES', 'FFToffset'
     ]
     # if platform.system() != 'Windows':
     control_items.append('PLOT_WIN_SETTING')
@@ -1229,8 +1461,6 @@ def start_mesurement_threaded(plot_win_disposition,
     dpg.bind_item_theme('Stop', 'DisabledButton')    
     # Programmatically select the "Data Table" tab
     select_tab('data_table_tab')    
-    # Cleanup after processing
-    processor.cleanup()
     with open(JSONLogFile, 'w') as json_file:
         json.dump(data, json_file, indent=1)
     f.close()
@@ -1253,6 +1483,7 @@ def processing_thread(data, plot_win_disposition,
                       magnitude_phase_conn, fft_oscilloscope_conn, xy_conn):
     """Synchronized thread for handling data processing and sending to separate sockets for Matplotlib updates."""
     try:
+        dpg.bind_item_theme('Play', 'GreenButton')
         for index, frequency in enumerate(list(data.keys())):
             # **Step 1: Pause Loop**
             pause_loop()
@@ -1283,23 +1514,12 @@ def processing_thread(data, plot_win_disposition,
                     # Send data to Magnitude/Phase PlotManager socket
                     if all(key in data[frequency] and data[frequency][key] is not None for key in ['gX', 'gY', 'pX', 'pY']):
                         try:
-                            """
-                            payload = json.dumps({
-                                "gain_X": data[frequency]['gX'],
-                                "gain_Y": data[frequency]['gY'],
-                                "phase_X": data[frequency]['pX'],
-                                "phase_Y": data[frequency]['pY']
-                            })
-                            """
                             payload = json.dumps({
                                 "gain_X": round(data[frequency]['gX']),  # Single value, rounded to whole number
                                 "gain_Y": round(data[frequency]['gY'], 4),  # Single value, rounded to 4 decimal places
                                 "phase_X": round(data[frequency]['pX']),  # Single value, rounded to whole number
                                 "phase_Y": round(data[frequency]['pY'], 4)  # Single value, rounded to 4 decimal places
                             })
-                            # magnitude_phase_conn.sendall(payload.encode('utf-8'))
-                            # magnitude_phase_conn.sendall(b"<END>")
-                            
                             # Split serialized data into chunks and send
                             for start in range(0, len(payload), 2560):  # Ensure `range` is not shadowed
                                 chunk = payload[start:start+2560]
@@ -1316,18 +1536,6 @@ def processing_thread(data, plot_win_disposition,
                     # Send data to FFT Oscilloscope PlotManager socket
                     if all(key in data[frequency] and data[frequency][key] is not None for key in ['FFT_maxfreq', 'FFT_max', 'FFT_freq', 'FFT_result', 'raw_frequencies_x_in', 'raw_waveform_in', 'raw_frequencies_x_out', 'raw_waveform_out']):
                         try:
-                            """
-                            payload = json.dumps({
-                                "FFTxMax": data[frequency]['FFT_maxfreq'],
-                                "FFTmaxVal": data[frequency]['FFT_max'],
-                                "FFTx": data[frequency]['FFT_freq'],
-                                "FFTy": data[frequency]['FFT_result'],
-                                "OSCxin": data[frequency]['raw_frequencies_x_in'],
-                                "OSCyin": data[frequency]['raw_waveform_in'],
-                                "OSCxout": data[frequency]['raw_frequencies_x_out'],
-                                "OSCyout": data[frequency]['raw_waveform_out']
-                            })
-                            """
                             payload = json.dumps({
                                 "FFTxMax": round(data[frequency]['FFT_maxfreq']),  # No decimals
                                 "FFTmaxVal": round(data[frequency]['FFT_max'], 4),  # Round to whole number
@@ -1338,10 +1546,6 @@ def processing_thread(data, plot_win_disposition,
                                 "OSCxout": [round(x) for x in data[frequency]['raw_frequencies_x_out']],  # Round to 4 decimals
                                 "OSCyout": [round(y, 4) for y in data[frequency]['raw_waveform_out']]  # Round each element to whole numbers
                             })
-                                                                        
-                            # fft_oscilloscope_conn.sendall(payload.encode('utf-8'))
-                            # fft_oscilloscope_conn.sendall(b"<END>")
-                            
                             # Split serialized data into chunks and send
                             for start in range(0, len(payload), 32768):  # Ensure `range` is not shadowed
                                 chunk = payload[start:start+32768]
@@ -1355,12 +1559,6 @@ def processing_thread(data, plot_win_disposition,
                     # Send data to XY Oscilloscope PlotManager socket
                     if all(key in data[frequency] and data[frequency][key] is not None for key in ['raw_waveform_in', 'raw_waveform_out']):
                         try:
-                            """
-                            payload = json.dumps({
-                                "raw_waveform_in": data[frequency]['raw_waveform_in'],
-                                "raw_waveform_out": data[frequency]['raw_waveform_out']
-                            })
-                            """
                             payload = json.dumps({
                                 "raw_waveform_in": [round(value, 4) for value in data[frequency]['raw_waveform_in']],  # Round to 4 decimal places
                                 "raw_waveform_out": [round(value, 4) for value in data[frequency]['raw_waveform_out']]  # Round to 4 decimal places
@@ -1379,7 +1577,6 @@ def processing_thread(data, plot_win_disposition,
                             logging.error(f"Error sending data to XY Oscilloscope plot: {e}")
                     else:
                         logging.error("XY Oscilloscope connection is None. Skipping data transmission.")
-
 
             # **Step 4: Update DearPyGui Table**
             try:
@@ -1518,7 +1715,6 @@ def handle_socket(stop_event, ready_event, port, connection_var_name):
             socket_instance.close()
             logging.info(f"Socket on port {port} fully closed.")
 
-
 def start_socket_threads():
     """Initialize and start threads for handling different sockets."""
     global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
@@ -1582,7 +1778,6 @@ def wait_for_threads(max_wait_time=10):
     logging.info("Error: One or more threads failed to start within the time limit.")
     return False
 
-
 def wait_for_all_events(events, timeout):
     """Wait until all events in the list are set or until timeout.
 
@@ -1627,7 +1822,7 @@ def PlayBack():
         'START_DEC', 'STOP_DEC', 'POINT_SCALE_COEFF',
         'V_SCALE_COEFF', 'H_SCALE_COEFF', 'OSCILL_TIMEOUT', 'CODE_EXEC_PAUSE',
         'WIN_THEME', 'SEARCH_OSCILLOSCOPE', 'START_MEASURE', 'JSONLOGFILEtag',
-        'SAMPLE_WAVES', 'FFToffset', 'FIXSTARTPHASE'
+        'SAMPLE_WAVES', 'FFToffset'
     ]
     # if platform.system() != 'Windows':
     control_items.append('PLOT_WIN_SETTING')
@@ -1642,6 +1837,7 @@ def PlayBack():
     ]
     for item in control_items:
         dpg.configure_item(item=item, enabled=True)
+    dpg.bind_item_theme('Play', 'YellowButton')
     dpg.bind_item_theme('Stop', 'RedButton') 
     # Clear all the plots
     try:
@@ -1689,7 +1885,7 @@ def PlayBack():
 
     # Cleanup old data from table in GUI
     dpg.delete_item(item='DataTable')
-    with dpg.table(parent='dataTableWindow', header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, width=setting_window_width - 10, height=340, freeze_rows=1,
+    with dpg.table(parent='dataTableWindow', header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, width=setting_window_width - 5, height=318, freeze_rows=1,
                     scrollY=True, scrollX=False, borders_outerH=True, borders_innerV=True, borders_innerH=True, borders_outerV=True, tag='DataTable'):
         dpg.add_table_column(label="Frequency")
         dpg.add_table_column(label="MeasFreq")
@@ -1706,7 +1902,6 @@ def PlayBack():
     fft_oscilloscope_conn = None
     xy_conn = None
     
-   
     try:
         if plot_win_disposition == 'MatPlotLib':
             # Set environment variables for decades and points per decade
@@ -1735,7 +1930,7 @@ def PlayBack():
             plot_manager_fft_oscilloscope.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
 
  
-            timeout_duration = 120  # seconds
+            timeout_duration = 180  # seconds
 
             # Create a list of your events that need to be signaled
             events = [magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event]
@@ -1758,10 +1953,7 @@ def PlayBack():
                 logging.info("XY Oscilloscope server is ready.")
             else:
                 logging.info("Error: XY Oscilloscope server failed to start within the timeout.")
-
-
-
- 
+        
         else:
             # If not using Matplotlib, disable plot managers
             plot_manager = None
@@ -1839,7 +2031,7 @@ def stop_play_cleaup():
         'START_DEC', 'STOP_DEC', 'POINT_SCALE_COEFF',
         'V_SCALE_COEFF', 'H_SCALE_COEFF', 'OSCILL_TIMEOUT', 'CODE_EXEC_PAUSE',
         'WIN_THEME', 'SEARCH_OSCILLOSCOPE', 'JSONLOGFILEtag',
-        'SAMPLE_WAVES', 'FFToffset', 'FIXSTARTPHASE'
+        'SAMPLE_WAVES', 'FFToffset'
         ]
     # if platform.system() != 'Windows':
     control_items.append('PLOT_WIN_SETTING')
@@ -1933,6 +2125,10 @@ def average_sinusoidal_arrays(arrays):
     Returns:
         The final averaged array after outlier removal and phase shift correction.
     """
+
+   # If only one waveform is provided, simply return it.
+    if len(arrays) == 1:
+        return np.array(arrays[0])
     
     # Find the array with the maximum length
     max_length = max(len(arr) for arr in arrays)
@@ -2010,61 +2206,84 @@ Look at graphing the imaginary VS real VS the frequency domain use def with
 dictionary containing the analysis results
 full_sin_analysis(sample_rate, full_sin_analysis, signal1, signal2):
 """
+def normalize_phase(angle_deg):
+    """Wraps an angle in degrees to the [-180, 180] range, treating 180° as a special case."""
+    """ Maybe consider looking at last phase before 180 to determine if +/-. """
+    if angle_deg % 360 == 180:
+        # Return 180 if the original angle is exactly 180° modulo 360.
+        return 180
+    else:
+        # Standard normalization to [-180, 180)
+        return (angle_deg + 180) % 360 - 180
+
+def find_zero_crossings(signal):
+    """Find the indices of all rising zero-crossings in the signal."""
+    zero_crossings = []
+    for i in range(1, len(signal)):
+        if signal[i - 1] <= 0 and signal[i] > 0:  # Rising edge zero-crossing
+            zero_crossings.append(i)
+    return zero_crossings
+    deltas = deque(maxlen=3) 
 def full_sin_analysis(sample_rate, analysis_factor, signal1, signal2):
     """
-    Performs a full sinusoidal analysis on two signals.
-
-    Args:
-        sample_rate (float): The sample rate of the signals.
-        analysis_factor (float): The factor to be added to the normalized amplitude.
-        signal1 (list): The first signal.
-        signal2 (list): The second signal.
-
-    Returns:
-        dict: A dictionary containing the analysis results.
+    Performs a full sinusoidal analysis on two signals, including time-domain zero-crossing analysis.
+    The average_delta_time is computed after adjusting for a common trigger determined by the first
+    rising zero crossing of the reference signal (signal1).
     """
-    
+    # Find zero-crossings for both signals.
+    zc1 = find_zero_crossings(signal1)
+    zc2 = find_zero_crossings(signal2)
+
+    if not zc1:
+        raise ValueError("Signal1 did not contain any zero-crossings; cannot compute trigger offset.")
+
+    # Use first crossing in signal1 as the trigger.
+    trigger_index = zc1[0]
+    trigger_time = trigger_index / sample_rate
+
+    # Compute zero-crossing times relative to the trigger for signal1.
+    times1 = [(x / sample_rate) - trigger_time for x in zc1]
+    # For signal2, consider only those crossings that occur at or after the trigger.
+    times2 = [(x / sample_rate) - trigger_time for x in zc2 if x >= trigger_index]
+
+    # Pair up the crossings (using the minimum available count):
+    num_pairs = min(len(times1), len(times2))
+    corrected_crossing_differences = []
+    for i in range(num_pairs):
+        diff = times1[i] - times2[i]
+        corrected_crossing_differences.append(diff)
+
+    # The average delta time is given by:
+    average_delta_time = np.mean(corrected_crossing_differences)
+
+    # --- FFT-based Analysis ---
     n = len(signal1)
-    duration = n / sample_rate
-    time = np.linspace(0, duration, n, endpoint=False)
-    
     fft_signal1 = np.fft.fft(signal1)
     fft_signal2 = np.fft.fft(signal2)
-    frequencies = np.fft.fftfreq(n, 1/sample_rate)
-    
-    # Normalized amplitude in dB
-    amplitude_db_signal1 = analysis_factor + 20 * np.log10((np.abs(fft_signal1) / n) + 1e-10)  # Add small value 1e-10 (-200 dB) to avoid log(0)
-    amplitude_db_signal2 = analysis_factor + 20 * np.log10((np.abs(fft_signal2) / n) + 1e-10)  # Add small value 1e-10 (-200 dB) to avoid log(0)
+    frequencies = np.fft.fftfreq(n, 1 / sample_rate)
+    valid_indices = np.where(frequencies > 0)[0]
+
+    amplitude_db_signal1 = analysis_factor + 20 * np.log10((np.abs(fft_signal1) / n) + 1e-10)
+    amplitude_db_signal2 = analysis_factor + 20 * np.log10((np.abs(fft_signal2) / n) + 1e-10)
+
+    max_index_signal1 = valid_indices[np.argmax(np.abs(fft_signal1[valid_indices]))]
+    max_index_signal2 = valid_indices[np.argmax(np.abs(fft_signal2[valid_indices]))]
+
+    # Compute phases and then normalize them.
+    phase_signal1 = normalize_phase(np.angle(fft_signal1[max_index_signal1], deg=True))
+    phase_signal2 = normalize_phase(np.angle(fft_signal2[max_index_signal2], deg=True))
+    # The raw phase difference might also be outside the desired range; normalize it.
+    phase_difference = normalize_phase(phase_signal2 - phase_signal1)
 
     # Max amplitude and frequency
-    # max_index_signal1 = np.argmax(np.abs(fft_signal1[0:n//2]))
-    # max_freq_signal1 = frequencies[max_index_signal1]
-    # max_amplitude_db_signal1 = amplitude_db_signal1[max_index_signal1]
-   
-    # 2025/03/18 Exclude indices where the frequency is zero
-    valid_indices = np.where(frequencies != 0)[0]
-    max_index_signal1 = valid_indices[np.argmax(np.abs(fft_signal1[valid_indices]))]
     max_freq_signal1 = frequencies[max_index_signal1]
-    max_amplitude_db_signal1 = amplitude_db_signal1[max_index_signal1]
-
-    # max_index_signal2 = np.argmax(np.abs(fft_signal2[0:n//2]))
-    # max_freq_signal2 = frequencies[max_index_signal2]
-    # max_amplitude_db_signal2 = amplitude_db_signal2[max_index_signal2]
-
-    # 2025/03/18 Exclude indices where the frequency is zero
-    # valid_indices = np.where(frequencies != 0)[0]
-    max_index_signal2 = valid_indices[np.argmax(np.abs(fft_signal2[valid_indices]))]
     max_freq_signal2 = frequencies[max_index_signal2]
+    max_amplitude_db_signal1 = amplitude_db_signal1[max_index_signal1]
     max_amplitude_db_signal2 = amplitude_db_signal2[max_index_signal2]
 
-    # Angular frequency
+    # Angular frequencies
     angular_frequency_signal1 = 2 * np.pi * max_freq_signal1
     angular_frequency_signal2 = 2 * np.pi * max_freq_signal2
-    
-    # Phase and phase difference
-    phase_signal1 = np.angle(fft_signal1[max_index_signal1], deg=True)
-    phase_signal2 = np.angle(fft_signal2[max_index_signal2], deg=True)
-    phase_difference = phase_signal2 - phase_signal1
 
     # Gain
     gain_db = max_amplitude_db_signal2 - max_amplitude_db_signal1
@@ -2083,11 +2302,12 @@ def full_sin_analysis(sample_rate, analysis_factor, signal1, signal2):
         "phase_signal1_degrees": phase_signal1,
         "phase_signal2_degrees": phase_signal2,
         "phase_difference_degrees": phase_difference,
+        "average_delta_time": average_delta_time,  # Corrected average zero-crossing time difference
         "gain_db": gain_db,
         "fft_real_signal1": np.real(fft_signal1),
         "fft_imag_signal1": np.imag(fft_signal1),
         "fft_real_signal2": np.real(fft_signal2),
-        "fft_imag_signal2": np.imag(fft_signal2)
+        "fft_imag_signal2": np.imag(fft_signal2),
     }
     return results
 
@@ -2190,7 +2410,7 @@ def graph_processing(OSCvRange, FFTxMax, FFTmaxVal, FFTx, FFTy, OSCxin, OSCyin, 
         dpg.configure_item(item='DRAG_LINE_OSC_X', default_value=np.median(OSCxin))
         if len(OSCyin) > 0:
             dpg.configure_item(item='DRAG_LINE_OSC_Y', default_value=np.median(OSCyin))
-        RangeOffset = 2
+        RangeOffset = 0.75
         dpg.set_axis_limits('OSC_Y', -RangeOffset * OSCvRange, RangeOffset * OSCvRange)
         dpg.set_axis_limits_auto(axis='OSC_X')
         dpg.fit_axis_data(axis='OSC_X')
@@ -2536,6 +2756,14 @@ def create_themes():
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (150, 0, 0, 255))
                 dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
 
+        # Yellow button theme
+        with dpg.theme(tag='YellowButton') as yellow_button_theme:
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (255, 255, 0, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (200, 200, 0, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (150, 150, 0, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 0, 0, 255))
+
         # Disabled button theme
         with dpg.theme(tag='DisabledButton') as disabled_button_theme:
             with dpg.theme_component(dpg.mvButton, enabled_state=False):
@@ -2680,14 +2908,25 @@ def on_viewport_close():
 # Always initialize stop_event
 stop_event = multiprocessing.Event()
 
+# Callback function that updates CH_OUT based on the selected input channel
+def update_ch_out(sender, app_data):
+    # app_data contains the new selection from CH_IN
+    if app_data == available_channels[0]:
+        new_channel = available_channels[1]
+    else:
+        new_channel = available_channels[0]
+    # Update the text widget using its tag
+    dpg.set_value("CH_OUT", new_channel)
+
 # -- gui settings --- ---------------------------------------------
 def main():
     global channel_in, channel_out, CH1_probe_attenuation_ratio, CH2_probe_attenuation_ratio
     global CH1_coupling, CH2_coupling, Sample_command, DEPMEM, waveform_amplitude_V
-    global AWG_output_impedance, points_per_decade, start_decade, stop_decade
+    global AWG_output_impedance, points_per_decade, start_decade, stop_decade, addpm
     global point_resize_factor, vertical_scaling_factor, horizontal_scaling_factor
     global nWaveSamples, FTTcorection, read_delay_ms, sample_delay_s, plot_win_disposition
-    global is_playing, is_paused, play_speed, is_recording, working_dir, FixStartPhaseOffSet
+    global is_playing, is_paused, play_speed, is_recording, working_dir
+    global CH1_amplitude_scales, CH2_amplitude_scales, MaxFreqAdjust
 
 
     # --- Set working path --- ------------------------------------------------------------
@@ -2727,8 +2966,10 @@ def main():
             with dpg.child_window(tag='controlwin', width=dpgWindow3, height=setting_window_height - win_vertical_border, pos=(0, win_vertical_border), border=False, menubar=False): 
                 dpg.add_text("Oscilloscope settings:")
                 # Add various combo boxes for different settings
-                dpg.add_combo(tag='CH_IN', items=available_channels, label='Input Channel', default_value=available_channels[0], width=items_standard_width)
-                dpg.add_combo(tag='CH_OUT', items=available_channels, label='Output Channel', default_value=available_channels[1], width=items_standard_width)
+                with dpg.group(horizontal=True):
+                    dpg.add_combo(tag='CH_IN', items=available_channels, label='Input Channel', default_value=available_channels[0], width=items_standard_width, callback=update_ch_out)
+                    # Add the output channel input field, locked for editing via readonly=True.
+                    dpg.add_input_text(tag="CH_OUT", label="Output Channel", default_value=available_channels[1], width=items_standard_width, readonly=True)
                 dpg.add_combo(tag='CH1_ATTENUATION_RATIO', items=probes_attenuation_ratio, label='Channel 1 Probe attenuation ratio', default_value=probes_attenuation_ratio[1], width=items_standard_width)
                 dpg.add_combo(tag='CH2_ATTENUATION_RATIO', items=probes_attenuation_ratio, label='Channel 2 Probe attenuation ratio', default_value=probes_attenuation_ratio[1], width=items_standard_width)
                 dpg.add_combo(tag='CH1_COUPLING_MODE', items=channels_coupling_mode, label='Channel 1 Coupling mode', default_value=channels_coupling_mode[0], width=items_standard_width)
@@ -2760,13 +3001,15 @@ def main():
                 dpg.add_input_float(tag='POINT_SCALE_COEFF', label='Point scale coefficient', min_value=0, min_clamped=True, default_value=5850, width=items_standard_width)
                 dpg.add_input_float(tag='V_SCALE_COEFF', label='Vertical scale calibration coeff.', min_value=0, min_clamped=True, default_value=0.33, width=items_standard_width)
                 dpg.add_input_float(tag='H_SCALE_COEFF', label='Horizontal scale calibration coeff.', min_value=0, min_clamped=True, default_value=0.80, width=items_standard_width)
-                dpg.add_input_float(tag='OSCILL_TIMEOUT', label='Oscilloscope reading timeout (ms)', min_value=0, min_clamped=True, default_value=1200, width=items_standard_width)
-                dpg.add_input_float(tag='CODE_EXEC_PAUSE', label='Commands execution delay (s)', min_value=0, min_clamped=True, default_value=0.50, width=items_standard_width)
+                dpg.add_input_int(tag='OSCILL_TIMEOUT', label='Oscilloscope reading timeout (ms)', min_value=1200, min_clamped=True, default_value=1200, width=items_standard_width)
+                dpg.add_input_float(tag='CODE_EXEC_PAUSE', label='Commands execution delay (s)', min_value=0.2, min_clamped=True, default_value=0.20, width=items_standard_width)
 
                 # Add buttons for various actions
-                dpg.add_input_int(tag='SAMPLE_WAVES', label='Number of times waves are sampled', min_value=1, min_clamped=True, default_value=2, width=items_standard_width)
+                dpg.add_input_int(tag='SAMPLE_WAVES', label='Number of times waves are sampled', min_value=1, min_clamped=True, default_value=1, width=items_standard_width)
                 dpg.add_input_int(tag='FFToffset', label='FFT correction offset (db)', default_value=2, width=items_standard_width)
-                dpg.add_input_int(tag='FIXSTARTPHASE', label='First n samples for phase set +/-', min_value=-10, max_value=10, min_clamped=True, max_clamped=True, default_value=5, width=items_standard_width)
+                # Acceptable Degree Delta Per Measurement
+                dpg.add_input_int(tag='ADDPM', label='Acceptable Degree Delta Per Measurement', min_value=0, max_value=180, min_clamped=True, max_clamped=True, default_value=5, width=items_standard_width)
+                dpg.add_input_int(tag='MAXTFREQADJUST', label='Max attempts to Adjust Freq.', min_value=3, max_value=7, min_clamped=True, max_clamped=True, default_value=3, width=items_standard_width)
                 dpg.add_text('\n')
                 with dpg.group(horizontal=True):
                     dpg.add_button(tag='SEARCH_OSCILLOSCOPE', label='Search and Setup Oscilloscope', callback=search_oscilloscope)
@@ -2778,14 +3021,14 @@ def main():
                 dpg.add_button(tag='LOGFILE', label="CSV Log File: " + LogFile, callback=lambda: dpg.show_item("file_dialog_id1"))
                 dpg.add_button(tag='JSONLOGFILEtag', label="JSON Log File: " + JSONLogFile, callback=lambda: dpg.show_item("file_dialog_id2"))
                 dpg.add_text('\n')
-                
+                dpg.add_text('\n') # 2025/04/26 leaving space for variable to be added.
                 # Create tabs
                 with dpg.tab_bar(tag='tab_bar'):
                     with dpg.tab(label="Terminal", tag='terminal_tab'):
-                        with dpg.child_window(tag='terminal', width=setting_window_width, height=int(main_window_height / 4) - 60, label='Terminal', border=False):
+                        with dpg.child_window(tag='terminal', width=setting_window_width, height=int(main_window_height / 4) - 80, label='Terminal', border=False):
                             pass
                     with dpg.tab(label="Data Table", tag='data_table_tab'):
-                        with dpg.child_window(tag='dataTableWindow', width=setting_window_width, height=340, border=False, menubar=False):
+                        with dpg.child_window(tag='dataTableWindow', width=setting_window_width, height=318, border=False, menubar=False):
                             pass
 
                             # Add a table with various columns
@@ -2912,9 +3155,9 @@ def main():
                         x_pos=100,
                         y_pos=setY_pos,
                         width=viewport_width + scrollbar_width,
-                        height=set_window_height,
+                        height=set_window_height + scrollbar_width,
                         resizable=True,
-                        max_height=main_window_height,
+                        max_height=main_window_height + scrollbar_width,
                         min_height=int(main_window_height/4),
                         max_width=viewport_width + scrollbar_width,
                         min_width=viewport_width + scrollbar_width,
@@ -2945,7 +3188,8 @@ def main():
         horizontal_scaling_factor = float(dpg.get_value(item='H_SCALE_COEFF'))  # used for optimal horizontal scale calibration
         nWaveSamples = int(dpg.get_value(item='SAMPLE_WAVES'))  # used to set the number of times wave data is sampled to average out noise.
         FTTcorection = float(dpg.get_value(item='FFToffset'))  # 2025/02/27 Comparative Measurement of HDS320S with Rigol DS1054Z
-        FixStartPhaseOffSet = dpg.get_value('FIXSTARTPHASE') # It is necessary to fix the start in order to achieve the correct phase when the signal strength is weak.
+        addpm =  dpg.get_value('ADDPM') # Acceptable Degree Delta Per Measurement default 10 with range 0 to 180.
+        MaxFreqAdjust = dpg.get_value('MAXTFREQADJUST') # 2025/04/27 Maximum Frequency adjustment attepts to get a good phase value.
         read_delay_ms = int(dpg.get_value(item='OSCILL_TIMEOUT'))
         sample_delay_s = float(dpg.get_value(item='CODE_EXEC_PAUSE'))
         # Plot parameters
@@ -2958,20 +3202,6 @@ def main():
         dpg.set_item_width(item='MAG_PLOT_GRAPH', width=dpg.get_item_width(item='MAG_PLOT_WIN'))
         dpg.set_item_height(item='PHASE_PLOT_GRAPH', height=dpg.get_item_height(item='PHASE_PLOT_WIN'))
         dpg.set_item_width(item='PHASE_PLOT_GRAPH', width=dpg.get_item_width(item='PHASE_PLOT_WIN'))
-
-        # Limit the amplitude scales based on the chosen probe attenuation value (see datasheet for allowed values)
-        if CH1_probe_attenuation_ratio == '1X':
-            CH1_amplitude_scales = amplitude_scales_commands[2:]
-            CH1_amplitude_scales = amplitude_scales_values[2:]
-        elif CH1_probe_attenuation_ratio == '10X':
-            CH1_amplitude_scales = amplitude_scales_commands[:9]
-            CH1_amplitude_scales = amplitude_scales_values[:9]
-        if CH2_probe_attenuation_ratio == '1X':
-            CH2_amplitude_scales = amplitude_scales_commands[2:]
-            CH2_amplitude_scales = amplitude_scales_values[2:]
-        elif CH2_probe_attenuation_ratio == '10X':
-            CH2_amplitude_scales = amplitude_scales_commands[:9]
-            CH2_amplitude_scales = amplitude_scales_values[:9]
 
         dpg.render_dearpygui_frame()
     # Perform cleanup before destroying context

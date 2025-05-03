@@ -6,7 +6,7 @@ MIT License
 
 Copyright (c) [2025] [Bode Plotter]
 Bode plot implementation for the handheld oscilloscope OWON HDS320S
-Highly rewritten and modified between 01/20/2025 to 04/20/2025
+Highly rewritten and modified between 01/20/2025 to 05/04/2025
 Modifications were done by Bode Plotter with assistance from AI sourced from Google and Bing.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

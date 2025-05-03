@@ -28,7 +28,7 @@ def run_tests():
         ] + args
     )
 
-    print(f">>>>>>>>>> EXIT {returncode} <<<<<<<<<<")
+    logging.info(f">>>>>>>>>> EXIT {returncode} <<<<<<<<<<")
 
 
 if __name__ == "__main__":
