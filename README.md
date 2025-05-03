@@ -138,7 +138,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ### Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Playback Video
 
-[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.3.mp4)
+[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.4.mp4)
 
 ---
 
