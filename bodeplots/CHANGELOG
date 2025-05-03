@@ -12,3 +12,7 @@
 ## 0.0.3 (4 May 2025)
 
 * Updated full_sin_analysis, normalize_phase, and remove PhaseDiffProcessor. Phase is now plotting correctly.
+
+## 0.0.4 (4 May 2025)
+
+* Updated Data Validation: Before updating the MatPlotLib XY scatter plot, insert a validation check to ensure that both arrays have the same length.

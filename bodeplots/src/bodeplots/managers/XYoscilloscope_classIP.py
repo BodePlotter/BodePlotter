@@ -243,6 +243,14 @@ class XYoscilloscope:
                             data = json.loads(raw_data)  # Parse JSON data
                             raw_waveform_in = data["raw_waveform_in"]
                             raw_waveform_out = data["raw_waveform_out"]
+                            
+                            # Validate that the data lengths are consistent
+                            if len(raw_waveform_in) != len(raw_waveform_out):
+                                self.logger.error(
+                                    f"Inconsistent data lengths: raw_waveform_in ({len(raw_waveform_in)}) "
+                                    f"!= raw_waveform_out ({len(raw_waveform_out)}). Skipping update."
+                                )
+                                continue  # Skip this update cycle if lengths don't match
 
                             x_padding = (max(raw_waveform_in) - min(raw_waveform_in)) * 0.1
                             y_padding = (max(raw_waveform_out) - min(raw_waveform_out)) * 0.1

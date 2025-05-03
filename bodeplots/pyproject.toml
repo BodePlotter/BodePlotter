@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "Bode-Plots"
 bundle = "0.1"
-version = "0.0.3"
+version = "0.0.4"
 url = "https://github.com/BodePlotter/BodePlotter"
 license.file = "LICENSE"
 author = "Bode Plotter"

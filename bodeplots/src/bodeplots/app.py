@@ -513,8 +513,6 @@ def AWG_set_frequency(frequency, is_setup=False):
             FSA = full_sin_analysis(sampling_PERIOD, FTTcorection, raw_waveform_in, raw_waveform_out)
             PhaseNew = FSA['phase_difference_degrees']
             PhaseList.append(PhaseNew)
-        logging.info("sample_delay_s * FreqAdjust: {}".format(sample_delay_s * FreqAdjust))
-
             
     # Return the final measured frequency and phase list
     return ChkFREQ, PhaseList
