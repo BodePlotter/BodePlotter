@@ -327,8 +327,8 @@ options:
 
 2. **Matplotlib Performance on Windows 11**  
    On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds.
-   - If Matplotlib is selected, starting measurements or playing may take more than 15 seconds for additional windows load.
-     You may want to click the Pause button until the windows are loaded after seeing the first data points.
+   - If Matplotlib is selected, starting measurements or playing may take more than 90 seconds for additional windows load.
+     You the Pause button will be yellow until the windows are loaded.
    - *Matplotlib windows support was added in version 0.0.2.*
    - Matplotlib windows are not closed automatically before DearPyGui exits, leaving log and temporary files in the user’s TEMP directory.
    - **Command Prompt:**  
@@ -339,10 +339,11 @@ options:
      ```powershell
      explorer $env:TEMP
      ```
-   - [Bug #55 with briefcase-windows-VisualStudio-template](https://github.com/beeware/briefcase-windows-VisualStudio-template/issues/55) that causes Matplotlib to fail due to I/O handling issues. This happens as a result of the Briefcase logging wrapper does not support handling multiple instances due to spawning Matplotlib windows. Note, using Matplotlib within threads makes DearPyGui unstable and therefore starting a new process was used in place of threads. The new process in windows results in spawning a new instance.
+   - [Bug #55 with briefcase-windows-VisualStudio-template](https://github.com/beeware/briefcase-windows-VisualStudio-template/issues/55) that causes Matplotlib to fail due to I/O handling issues. This happens as a result of the Briefcase logging wrapper does not support handling multiple instances due to spawning Matplotlib windows. Note, using Matplotlib within threads makes DearPyGui unstable; therefore, starting a new process was used in place of threads. The new process per MatPlotLib window results in spawning a new instance.
    - **Workaround:**  
      Using the `console_app` flag in `pyproject.toml` to open a blank console appears to disable logging, mitigating these issues.
-     The advantage of the console is you can do ctrl+c to close all Bode-Plots windows. Recommend Stop first for active measurements or Play back.
+     The advantage of the console is you can do ctrl+c to close all Bode-Plots windows. 
+     Recommend Stop first for active measurements or Play back. This will allow the port connections to close without a crash dump being generated.
 	 If you would like to hid the console recommend making a bode-plots.vbs.
 	 If issues running with Invalid character use Notepad++, go to Encoding -> Convert to ANSI and then save the file.
 	 ```cmd
