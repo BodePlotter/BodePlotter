@@ -364,8 +364,6 @@ options:
          cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
          .\Bode-Plots.exe
          ```
-ots.exe
-     ```
 
 ---
 
