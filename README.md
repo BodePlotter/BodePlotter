@@ -31,19 +31,25 @@ You can also browse the latest releases on GitHub:
 ---
 
 ## Features
-1.  **Python Application with Briefcase**:
-   - Generate Bode-Plots.
-   - Accumulate Peak FFT values.
-   - Display oscilloscope.
-   - Display X-Y mode or Lissajous patterns.
-   - Current implementation uses the OWON HDS320S.
-2.  **OWON HDS320S Oscilloscope + Multi-Meter + Waveform Generator**:
-   - Bandwidth: 200 MHz, Sample Rate: 1 GS/s.
-   - Sine Wave Generator: 0.1 Hz to 30 MHz.
-   - Outputs 300 samples from the screen for both channels via SCPI.
-3.  **Additional Information**:
-   - [OWON HDS300 Series Digital Oscilloscope](https://www.owonna.com/products_owon_hds300_series_digital_oscilloscope)
-   - [SCPI Interface for OWON HDS320S](http://files.owon.com.cn/software/Application/HDS200_Series_SCPI_Protocol.pdf)
+### 1. Python Application with Briefcase
+- Generates Bode plots.
+- Accumulates peak FFT values.
+- Displays an oscilloscope view.
+- Offers X-Y mode and Lissajous pattern displays.
+- Provides alternative plotting using the Matplotlib option for all chart types.
+- Displays Smith charts using the Matplotlib option.
+- Currently supports the OWON HDS320S (OWON HDS2202S is not tested but uses the same SCPI Interface)
+
+### 2. OWON HDS320S Oscilloscope + Multi-Meter + Waveform Generator
+- **Bandwidth:** 200 MHz  
+  **Sample Rate:** 1 GS/s.
+- **Sine Wave Generator:** 0.1 Hz to 30 MHz.
+- Outputs 300 samples per channel from the screen via SCPI.
+
+### 3. Additional Information
+- [OWON HDS300 Series Digital Oscilloscope](https://www.owonna.com/products_owon_hds300_series_digital_oscilloscope)
+- [SCPI Interface for OWON HDS320S](http://files.owon.com.cn/software/Application/HDS200_Series_SCPI_Protocol.pdf)
+
 
 ---
 
@@ -138,7 +144,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ### Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Playback Video
 
-[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.4.mp4)
+[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.5.mp4)
 
 ---
 
@@ -157,18 +163,18 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 - If the `--base-port` option is not specified, local ports 5001, 5002, and 5003 will be used to communicate with the Matplotlib windows.
 
 ```bash
-usage: bodeplots [-h] [--plot-type {XY,MP,FFT,BODEPLOTTER}] 
+usage: bodeplots [-h] [--plot-type {XY,MP,FFT,SC,BODEPLOTTER}] 
                       [--start-decade START_DECADE] 
                       [--stop-decade STOP_DECADE] 
-                      [--points-per-decade POINTS_PER_DECADE] 
+                      [--points-per-decade POINTS_PER_DECADE]
                       [--base-port BASE_PORT]
 
 BodePlots Application
 
 options:
   -h, --help            show this help message and exit
-  --plot-type {XY,MP,FFT,BODEPLOTTER}
-                        Select the type of plot to display. Options: XY, MP, FFT, or BODEPLOTTER.
+  --plot-type {XY,MP,FFT,SC,BODEPLOTTER}
+                        Select the type of plot to display. Options: XY, MP, FFT, SC, or BODEPLOTTER.
   --start-decade START_DECADE
                         Specify the starting decade for data processing.
   --stop-decade STOP_DECADE
@@ -176,7 +182,7 @@ options:
   --points-per-decade POINTS_PER_DECADE
                         Specify the number of points per decade for the plot.
   --base-port BASE_PORT
-                        Specify the first IP port for communication; subsequent ports (+1, +2) will be used automatically.
+                        Specify first IP port for + 0, + 1, + 2 ports.
 
 ````
 
@@ -200,7 +206,7 @@ options:
 ---
 
 ## Install on Windows 11
-1. Download [Bode-Plots-0.0.4.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/Bode-Plots-0.0.4.msi) and double-click it in File Explorer.
+1. Download [Bode-Plots-0.0.5.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/Bode-Plots-0.0.5.msi) and double-click it in File Explorer.
 2. Follow the installation prompts: **Next** → **Next** → **Finish**.
 3. Open "Bode" from the Windows Start menu.
 4. Adjust vertical height as needed.
@@ -244,10 +250,10 @@ options:
 ---
 
 ## Install the .deb Package on Mint Linux (22.1)
-1. Download: [bodeplots_0.0.4-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/bodeplots_0.0.4-1.linuxmint-xia_amd64.deb).
+1. Download: [bodeplots_0.0.5-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/bodeplots_0.0.5-1.linuxmint-xia_amd64.deb).
 2. Open a terminal and run:
    ```bash
-   sudo apt install ./bodeplots_0.0.4-1~linuxmint-xia_amd64.deb
+   sudo apt install ./bodeplots_0.0.5-1~linuxmint-xia_amd64.deb
    ```
 
 ---
@@ -261,7 +267,7 @@ options:
 
 ## Build the .deb Package
 1. Use Live Mint (22.1) via VirtualBox or a local installation.
-2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/bodeplots-source-code.tgz).
+2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/bodeplots-source-code.tgz).
 3. Follow these steps:
    ```bash
    mkdir BodePlotter-ScopeFFT
@@ -281,7 +287,7 @@ options:
    briefcase build
    briefcase package
    ```
-   Package file location: `dist/bodeplots_0.0.4-1~linuxmint-xia_amd64.deb`.
+   Package file location: `dist/bodeplots_0.0.5-1~linuxmint-xia_amd64.deb`.
 
 ---
 
@@ -304,7 +310,7 @@ options:
     python.exe -m pip install --upgrade pip
     pip install briefcase numpy dearpygui matplotlib pyusb scipy screeninfo PyQt5
     ```
-4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.4/bodeplots-source-code.tgz)
+4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/bodeplots-source-code.tgz)
     ```PowerShell
     cd C:\BodePlotter-ScopeFFT
     .\bodeplotter\Scripts\activate
@@ -316,49 +322,49 @@ options:
     briefcase run -u
     briefcase package windows
     ```
-5.  Packaged MSI: `dist\Bode-Plots-0.0.4.msi`.
+5.  Packaged MSI: `dist\Bode-Plots-0.0.5.msi`.
 
 ---
 
 ## Issues
 
-1. **DearPyGui Maximize Button**  
-   The maximize button in DearPyGui does not function correctly due to fixed window size constraints.
+1. **Smith Chart Normalization:**  
+   - The Smith chart is currently not normalized. When the magnitude for an active filter exceeds 0 dB, the plot area scales dynamically to accommodate the data, causing the rendered chart to extend outside the standard Smith chart boundaries.
 
-2. **Matplotlib Performance on Windows 11**  
-   On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds.
-   - If Matplotlib is selected, starting measurements or playing may take more than 90 seconds for additional windows load.
-     You the Pause button will be yellow until the windows are loaded.
-   - *Matplotlib windows support was added in version 0.0.2.*
-   - Matplotlib windows are not closed automatically before DearPyGui exits, leaving log and temporary files in the user’s TEMP directory.
-   - **Command Prompt:**  
-     ```cmd
-     explorer %TEMP%
-     ```
-   - **PowerShell:**  
-     ```powershell
-     explorer $env:TEMP
-     ```
-   - [Bug #55 with briefcase-windows-VisualStudio-template](https://github.com/beeware/briefcase-windows-VisualStudio-template/issues/55) that causes Matplotlib to fail due to I/O handling issues. This happens as a result of the Briefcase logging wrapper does not support handling multiple instances due to spawning Matplotlib windows. Note, using Matplotlib within threads makes DearPyGui unstable; therefore, starting a new process was used in place of threads. The new process per MatPlotLib window results in spawning a new instance.
-   - **Workaround:**  
-     Using the `console_app` flag in `pyproject.toml` to open a blank console appears to disable logging, mitigating these issues.
-     The advantage of the console is you can do ctrl+c to close all Bode-Plots windows. 
-     Recommend Stop first for active measurements or Play back. This will allow the port connections to close without a crash dump being generated.
-	 If you would like to hid the console recommend making a bode-plots.vbs.
-	 If issues running with Invalid character use Notepad++, go to Encoding -> Convert to ANSI and then save the file.
-	 ```cmd
-	 Set WshSell = CreateObject("WScript.Shell")
-     WshSell.Run "cmd /c bodeplots.exe", 0, True
-     Set WshSell = Nothing
-	 ```
-	 
-	 Without the `console_app` flag to get Matplotlib windows to open. (Allow spawned instances or more than on cocurrent instance.) 
-     ```powershell
-     cd C:\BodePlotter-ScopeFFT
-     .\bodeplotter\Scripts\activate
-     briefcase.exe -v
-     cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
-     .\Bode-Plots.exe
+2. **DearPyGui Maximize Button:**  
+   - The maximize button in DearPyGui does not function correctly because of fixed window size constraints, limiting its ability to enter a true full-screen mode.
+
+3. **Matplotlib Performance on Windows 11:**  
+   - On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds:
+     - If Matplotlib is selected, starting measurements or playback may exceed 90 seconds before additional windows load.
+     - Matplotlib windows are not automatically closed when DearPyGui exits, which can leave log files and temporary files in the user’s TEMP directory. To inspect the TEMP directory, use:
+       - **Command Prompt:**
+         ```cmd
+         explorer %TEMP%
+         ```
+       - **PowerShell:**
+         ```powershell
+         explorer $env:TEMP
+         ```
+     - There is a known issue ([Bug #55 with briefcase-windows-VisualStudio-template](https://github.com/beeware/briefcase-windows-VisualStudio-template/issues/55)) where Matplotlib fails due to I/O handling problems. This arises because the Briefcase logging wrapper does not support managing multiple instances spawned by Matplotlib. (Note: Using Matplotlib within threads makes DearPyGui unstable; therefore, a new process per Matplotlib window is used instead.)
+     - **Workaround:**  
+       - Using the `console_app` flag in `pyproject.toml` to open a blank console appears to disable logging, which mitigates these issues. An advantage of the console is that you can press CTRL+C to close all Bode-Plots windows.
+       - It is recommended to stop active measurements or playback before proceeding, allowing port connections to close gracefully without generating crash dumps.
+       - If you would like to hide the console, consider creating a `bode-plots.vbs` script. If you encounter issues with invalid characters, open the file in Notepad++, select **Encoding → Convert to ANSI**, and then save the file. For example:
+         ```cmd
+         Set WshShell = CreateObject("WScript.Shell")
+         WshShell.Run "cmd /c bodeplots.exe", 0, True
+         Set WshShell = Nothing
+         ```
+       - Without the `console_app` flag—allowing for multiple concurrent Matplotlib instances—you can start the application using the following commands:
+         ```powershell
+         cd C:\BodePlotter-ScopeFFT
+         .\bodeplotter\Scripts\activate
+         briefcase.exe -v
+         cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
+         .\Bode-Plots.exe
+         ```
+ots.exe
      ```
 
 ---

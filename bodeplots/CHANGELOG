@@ -16,3 +16,7 @@
 ## 0.0.4 (4 May 2025)
 
 * Updated Data Validation: Before updating the MatPlotLib XY scatter plot, insert a validation check to ensure that both arrays have the same length.
+
+## 0.0.5 (9 May 2025)
+
+* Add Smith Chart for MatPlotLib only.

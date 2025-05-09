@@ -7,7 +7,7 @@ MIT License
 Copyright (c) [2025] [Bode Plotter]
 Original code written by Simone Albano on 10/15/2023
 Bode plot implementation for the handheld oscilloscope OWON HDS320S
-Highly rewritten and modified between 01/20/2025 to 05/04/2025
+Highly rewritten and modified between 01/20/2025 to 05/09/2025
 Modifications were done by Bode Plotter with assistance from AI sourced from Google and Bing.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -64,7 +64,7 @@ import argparse
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # 2025/03/19 Import the matplotlib class for bode-plotter
-from bodeplots.managers import PlotManagerFFToscilloscope, PlotManagerMagnitudePhase, XYoscilloscope
+from bodeplots.managers import PlotManagerFFToscilloscope, PlotManagerMagnitudePhase, XYoscilloscope, PlotManagerSmithChart
 
 from uuid import uuid4
 import shutil  # Import for cleanup
@@ -81,6 +81,11 @@ plot_win_settings = ['DearPyGui', 'MatPlotLib']
 drag_line_values = ['Drag Lines ON', 'Drag Lines OFF']
 points_spacing = ['Linear', 'Logarithmic']
 
+# Global variables to control chart visibility and names:
+# Index mapping: 0 -> XY, 1 -> MP, 2 -> FFT, 3 -> SC
+chart_visibility = [True, True, True, False]
+chart_names = ["XY Plot", "Bode Plots", "FFT/Oscilloscope", "Smith Chart"]
+
 # Global system variables
 global channel_in, channel_out, CH1_probe_attenuation_ratio, CH2_probe_attenuation_ratio
 global CH1_coupling, CH2_coupling, Sample_command, DEPMEM, waveform_amplitude_V
@@ -90,23 +95,26 @@ global nWaveSamples, FTTcorection, read_delay_ms, sample_delay_s, plot_win_dispo
 global JSONLogFile, plot_process, oscilloscope_OUT, oscilloscope_IN, oscilloscope
 global is_playing, is_paused, play_speed, is_recording
 
-global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
-global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event
-global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope
+global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event, sc_stop_event
+global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event, sc_ready_event
+global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope, thread_sc_oscilloscope
 global CH1_amplitude_scales, CH2_amplitude_scales, MaxFreqAdjust
 # Global thread objects
 thread_magnitude_phase = None
 thread_fft_oscilloscope = None
 thread_xy_oscilloscope = None
+thread_sc_oscilloscope = None
 
 # Stop events for controlling thread termination
 magnitude_phase_stop_event = threading.Event()
 fft_oscilloscope_stop_event = threading.Event()
 xy_stop_event = threading.Event()
+sc_stop_event = threading.Event()
 
 magnitude_phase_ready_event = threading.Event()
 fft_oscilloscope_ready_event = threading.Event()
-xy_ready_event = threading.Event()          
+xy_ready_event = threading.Event()
+sc_ready_event = threading.Event()
 
 LogFile = "AUTO.csv"
 JSONLogFile = "AUTO.json"
@@ -225,28 +233,40 @@ def signal_handler(sig, frame):
     is_playing = False
     is_paused = False
     is_recording = False
-    shutdown_event.set()  # Signal all threads/processes to stop
+
+    # Signal all threads/processes to stop.
+    shutdown_event.set()
     
     time.sleep(0.5)
     logging.info("Gracefully closing MatPlotLib windows now ...")
     
-    for osc in XYoscilloscope.get_running_instances():
+    # shutdown all running PlotManagerSmithChart instances.
+    for osc in PlotManagerSmithChart.get_running_instances():
         try:
             osc.send_close_signal()
         except Exception as e:
-            logging.error("Error stopping XYoscilloscope instance: %s", e)
-            
+            logging.error("Error stopping PlotManagerSmithChart instance: %s", e)
+
+    # shutdown all running PlotManagerMagnitudePhase instances.
     for osc in PlotManagerMagnitudePhase.get_running_instances():
         try:
             osc.send_close_signal()
         except Exception as e:
             logging.error("Error stopping PlotManagerMagnitudePhase instance: %s", e)
-    
+
+    # shutdown all running plotting/oscilloscope instances.
     for osc in PlotManagerFFToscilloscope.get_running_instances():
         try:
             osc.send_close_signal()
         except Exception as e:
             logging.error("Error stopping PlotManagerFFToscilloscope instance: %s", e)
+    
+    # shutdown all running XYoscilloscope instances.
+    for osc in XYoscilloscope.get_running_instances():
+        try:
+            osc.send_close_signal()
+        except Exception as e:
+            logging.error("Error stopping XYoscilloscope instance: %s", e)
             
     dpg.stop_dearpygui()  # Stop the Dear PyGui main loop
     # Shut down the logging system
@@ -941,24 +961,28 @@ def setup_oscilloscope():
 
 def start_mesurement():
     global LogFile, JSONLogFile, nWaveSamples, FTTcorection, is_recording
-    global magnitude_phase_conn, magnitude_phase_socket
-    global xy_conn, xy_oscilloscope_socket
-    global fft_oscilloscope_conn, fft_oscilloscope_socket, addpm
-    global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
-    global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event
-    global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope
+    global magnitude_phase_conn
+    global xy_conn
+    global sc_conn   
+    global fft_oscilloscope_conn, addpm
+    global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event, sc_stop_event
+    global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event, sc_ready_event
+    global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope, thread_sc_oscilloscope
 
     magnitude_phase_stop_event.clear()
     fft_oscilloscope_stop_event.clear()
     xy_stop_event.clear()
+    sc_stop_event.clear()
     magnitude_phase_ready_event.clear()
     fft_oscilloscope_ready_event.clear()
     xy_ready_event.clear()
+    sc_ready_event.clear()
 
     # Initialize plot managers and socket
     magnitude_phase_conn = None
     fft_oscilloscope_conn = None
     xy_conn = None
+    sc_conn = None
     dpg.bind_item_theme('START_MEASURE', 'YellowButton')
     
     
@@ -978,50 +1002,93 @@ def start_mesurement():
                 logging.info("Aborting: Failed to start all threads.")
                 return
             
-             # Start plot managers
+            # Start plot managers
             
-            plot_manager = PlotManagerMagnitudePhase()
-            plot_manager.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
-                       
-            xy_oscilloscope = XYoscilloscope()
-            xy_oscilloscope.start_plot_process()
+            # List to collect events of the plot processes that will be started.
+            events = []
             
-            plot_manager_fft_oscilloscope = PlotManagerFFToscilloscope()
-            plot_manager_fft_oscilloscope.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
+            # Start Magnitude/Phase (Bode Plots) if visible (chart_visibility[1])
+            if chart_visibility[1]:
+                plot_manager = PlotManagerMagnitudePhase()
+                plot_manager.start_plot_process(decades_list[start_decade],
+                                                decades_list[stop_decade],
+                                                points_per_decade)
+                events.append(magnitude_phase_ready_event)
+            else:
+                plot_manager = None
+            
+            # Start XY Oscilloscope if visible (chart_visibility[0])
+            if chart_visibility[0]:
+                xy_oscilloscope = XYoscilloscope()
+                xy_oscilloscope.start_plot_process()
+                events.append(xy_ready_event)
+            else:
+                xy_oscilloscope = None
+            
+            # Start FFT/Oscilloscope if visible (chart_visibility[2])
+            if chart_visibility[2]:
+                plot_manager_fft_oscilloscope = PlotManagerFFToscilloscope()
+                plot_manager_fft_oscilloscope.start_plot_process(decades_list[start_decade],
+                                                                decades_list[stop_decade],
+                                                                points_per_decade)
+                events.append(fft_oscilloscope_ready_event)
+            else:
+                plot_manager_fft_oscilloscope = None
+            
+            # Start Smith Chart if visible (chart_visibility[3])
+            if chart_visibility[3]:
+                plot_manager_sc = PlotManagerSmithChart()
+                plot_manager_sc.start_plot_process()
+                events.append(sc_ready_event)
+            else:
+                plot_manager_sc = None
 
- 
+            # Define a timeout duration (in seconds) for the servers to signal readiness.
             timeout_duration = 180  # seconds
 
-            # Create a list of your events that need to be signaled
-            events = [magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event]
-
-            logging.info("Waiting for all servers to be ready...")
-            all_ready = wait_for_all_events(events, timeout_duration)
-
-            # Now check each event, since you may want to display an error for each one that failed.
-            if magnitude_phase_ready_event.is_set():
-                logging.info("Magnitude/Phase server is ready.")
+            if events:
+                logging.info("Waiting for all requested plot servers to be ready...")
+                all_ready = wait_for_all_events(events, timeout_duration)
+            
+                # Check each event individually if the corresponding plot was started:
+                if chart_visibility[1]:
+                    if magnitude_phase_ready_event.is_set():
+                        logging.info("Magnitude/Phase server is ready.")
+                    else:
+                        logging.info("Error: Magnitude/Phase server failed to start within the timeout.")
+            
+                if chart_visibility[0]:
+                    if xy_ready_event.is_set():
+                        logging.info("XY Oscilloscope server is ready.")
+                    else:
+                        logging.info("Error: XY Oscilloscope server failed to start within the timeout.")
+            
+                if chart_visibility[2]:
+                    if fft_oscilloscope_ready_event.is_set():
+                        logging.info("FFT Oscilloscope server is ready.")
+                    else:
+                        logging.info("Error: FFT Oscilloscope server failed to start within the timeout.")
+            
+                if chart_visibility[3]:
+                    if sc_ready_event.is_set():
+                        logging.info("SC (Smith Chart) server is ready.")
+                    else:
+                        logging.info("Error: SC (Smith Chart) server failed to start within the timeout.")
             else:
-                logging.info("Error: Magnitude/Phase server failed to start within the timeout.")
+                logging.info("No plot managers were requested for MatPlotLib display.")
 
-            if fft_oscilloscope_ready_event.is_set():
-                logging.info("FFT Oscilloscope server is ready.")
-            else:
-                logging.info("Error: FFT Oscilloscope server failed to start within the timeout.")
 
-            if xy_ready_event.is_set():
-                logging.info("XY Oscilloscope server is ready.")
-            else:
-                logging.info("Error: XY Oscilloscope server failed to start within the timeout.")
-                
         else:
             # If not using Matplotlib, disable plot managers
             plot_manager = None
             plot_manager_fft_oscilloscope = None
             xy_oscilloscope = None
+            plot_manager_sc = None
             magnitude_phase_conn = None
             fft_oscilloscope_conn = None
             xy_conn = None
+            sc_oscilloscope_conn = None
+            sc_conn = None
             
         if is_recording == False:
             is_recording = True
@@ -1035,7 +1102,7 @@ def start_mesurement():
             # Launch the background thread for processing
             processing_start_mesurement_threaded = threading.Thread(
                 target=start_mesurement_threaded, 
-                args=(plot_win_disposition, magnitude_phase_conn, fft_oscilloscope_conn, xy_conn),
+                args=(plot_win_disposition, magnitude_phase_conn, fft_oscilloscope_conn, xy_conn, sc_conn),
                 daemon=True
             )
             processing_start_mesurement_threaded.start()
@@ -1055,7 +1122,7 @@ def is_between(val, bound1, bound2):
 
 def start_mesurement_threaded(plot_win_disposition,
                               magnitude_phase_conn, 
-                              fft_oscilloscope_conn, xy_conn):
+                              fft_oscilloscope_conn, xy_conn, sc_conn):
     """
     Start the measurement process for the oscilloscope and Arbitrary Waveform Generator (AWG).
     
@@ -1092,6 +1159,11 @@ def start_mesurement_threaded(plot_win_disposition,
 
     for item in control_items:
         dpg.configure_item(item=item, enabled=False)
+
+    # Disable the checkboxes while running the plots/charts:
+    for i in range(len(chart_names)):
+        dpg.configure_item(f"checkbox_{i}", enabled=False)
+        
     # dpg.bind_item_theme('START_MEASURE', 'DisabledButton')
     dpg.bind_item_theme('JSONLOGFILEtag', 'DisabledButton')
     
@@ -1394,7 +1466,30 @@ def start_mesurement_threaded(plot_win_disposition,
                             logging.error(f"Error sending data to XY Oscilloscope plot: {e}")
                     else:
                         logging.error("XY Oscilloscope connection is None. Skipping data transmission.")
-     
+
+                if sc_conn:
+                    # Send data to Smith Chart PlotManager socket
+                    if (all(key in data[frequency] and data[frequency][key] is not None 
+                            for key in ['gX', 'gY', 'pX', 'pY']) ):
+                        try:
+                            payload = json.dumps({
+                                "frequency": [round(data[frequency]['pX'])],  # Wrap in a list
+                                "magnitude_db": [round(data[frequency]['gY'], 4)],  # Wrap in a list
+                                "phase_degrees": [round(data[frequency]['pY'], 4)]  # Wrap in a list
+                            })    
+                            
+                            # Split serialized data into chunks and send
+                            for start in range(0, len(payload), 2560):  # Ensure `range` is not shadowed
+                                chunk = payload[start:start+2560]
+                                sc_conn.sendall(chunk.encode('utf-8'))
+
+                            # Send end-of-message marker
+                            sc_conn.sendall(b"<END>")  # Signal the end of the current payloadfor frequency {frequency}")
+                        except Exception as e:
+                            logging.error(f"Error sending data to Smith Chart plot: {e}")
+                    else:
+                        logging.error("Smith Chart connection is None. Skipping data transmission.")
+                        
             with dpg.table_row(parent='DataTable'):
                 dpg.add_text(str(int(round(pX, 0))))
                 dpg.add_text(str(int(round(gX, 0))))
@@ -1456,6 +1551,11 @@ def start_mesurement_threaded(plot_win_disposition,
     ]
     for item in control_items:
         dpg.configure_item(item=item, enabled=False)
+
+    # Enable the checkboxes while running the plots/charts:
+    for i in range(len(chart_names)):
+        dpg.configure_item(f"checkbox_{i}", enabled=True)
+    
     dpg.bind_item_theme('Stop', 'DisabledButton')    
     # Programmatically select the "Data Table" tab
     select_tab('data_table_tab')    
@@ -1474,11 +1574,12 @@ def start_mesurement_threaded(plot_win_disposition,
         close_connection(magnitude_phase_conn, "Magnitude/Phase", 2)
         close_connection(fft_oscilloscope_conn, "FFT Oscilloscope", 2)
         close_connection(xy_conn, "XY Oscilloscope", 2)
+        close_connection(sc_conn, "SC Oscilloscope", 2)
         PlayBack_cleanup()
 
     
 def processing_thread(data, plot_win_disposition,
-                      magnitude_phase_conn, fft_oscilloscope_conn, xy_conn):
+                      magnitude_phase_conn, fft_oscilloscope_conn, xy_conn, sc_conn):
     """Synchronized thread for handling data processing and sending to separate sockets for Matplotlib updates."""
     try:
         dpg.bind_item_theme('Play', 'GreenButton')
@@ -1575,6 +1676,30 @@ def processing_thread(data, plot_win_disposition,
                             logging.error(f"Error sending data to XY Oscilloscope plot: {e}")
                     else:
                         logging.error("XY Oscilloscope connection is None. Skipping data transmission.")
+                        
+                if sc_conn:
+                    # Send data to Smith Chart PlotManager socket
+                    if (all(key in data[frequency] and data[frequency][key] is not None 
+                            for key in ['gX', 'gY', 'pX', 'pY']) ):
+                        try:
+                            payload = json.dumps({
+                                "frequency": [round(data[frequency]['pX'])],  # Wrap in a list
+                                "magnitude_db": [round(data[frequency]['gY'], 4)],  # Wrap in a list
+                                "phase_degrees": [round(data[frequency]['pY'], 4)]  # Wrap in a list
+                            })                            
+                            
+                            # Split serialized data into chunks and send
+                            for start in range(0, len(payload), 2560):
+                                chunk = payload[start:start+2560]
+                                sc_conn.sendall(chunk.encode('utf-8'))
+
+                            # Send end-of-message marker
+                            sc_conn.sendall(b"<END>") # Signal the end of the current payloadfor frequency {frequency}")
+                        except Exception as e:
+                            logging.error(f"Error sending data to Smith Chart plot: {e}")
+                    else:
+                        logging.error("Either required data fields are missing/inconsistent or the connection is None. Skipping data transmission.")
+                        
 
             # **Step 4: Update DearPyGui Table**
             try:
@@ -1606,7 +1731,8 @@ def processing_thread(data, plot_win_disposition,
     close_connection(magnitude_phase_conn, "Magnitude/Phase", 2)
     close_connection(fft_oscilloscope_conn, "FFT Oscilloscope", 2)
     close_connection(xy_conn, "XY Oscilloscope", 2)
-
+    close_connection(sc_conn, "SC Oscilloscope", 2)
+    
 # Close connections gracefully
 def close_connection(conn, conn_name, timeout=5):
     try:
@@ -1667,6 +1793,8 @@ def close_connection(conn, conn_name, timeout=5):
                 fft_oscilloscope_conn = None
             elif conn_name == "XY Oscilloscope":
                 xy_conn = None
+            elif conn_name == "SC Oscilloscope":
+                sc_conn = None
             logging.info(f"{conn_name} global variable reset to None.")
 
 def clear_events(*events):
@@ -1715,37 +1843,55 @@ def handle_socket(stop_event, ready_event, port, connection_var_name):
 
 def start_socket_threads():
     """Initialize and start threads for handling different sockets."""
-    global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
-    global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event
-    global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope
+    global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event, sc_stop_event
+    global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event, sc_ready_event
+    global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope, thread_sc_oscilloscope
 
-    # Clear stop and ready events
-    clear_events(magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event)
-    clear_events(magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event)
+    # Clear stop and ready events for all socket types.
+    clear_events(magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event, sc_stop_event)
+    clear_events(magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event, sc_ready_event)
 
-    # Retrieve base port from environment variable or use default
+    # Retrieve base port from environment variable or use default.
     try:
         base_port = int(os.getenv("BASE_PORT", 5001))
     except ValueError:
-        # Optionally log the error or set a fallback base port
         logging.error("Invalid BASE_PORT value in environment; falling back to 5001")
         base_port = 5001
 
-    # Assign related ports dynamically using the retrieved base_port
-    MP_PORT, FFT_PORT, XY_PORT = base_port, base_port + 1, base_port + 2
+    # Assign related ports dynamically.
+    MP_PORT, FFT_PORT, XY_PORT, SC_PORT = base_port, base_port + 1, base_port + 2, base_port + 3
 
-    logging.info(f"MP_PORT: {MP_PORT}, FFT_PORT: {FFT_PORT}, XY_PORT: {XY_PORT}")
-    
-    # Start threads  
-    thread_magnitude_phase = threading.Thread(target=handle_socket, args=(magnitude_phase_stop_event, magnitude_phase_ready_event, MP_PORT, "magnitude_phase_conn"), daemon=True)
-    thread_fft_oscilloscope = threading.Thread(target=handle_socket, args=(fft_oscilloscope_stop_event, fft_oscilloscope_ready_event, FFT_PORT, "fft_oscilloscope_conn"), daemon=True)
-    thread_xy_oscilloscope = threading.Thread(target=handle_socket, args=(xy_stop_event, xy_ready_event, XY_PORT, "xy_conn"), daemon=True)
+    logging.info(f"MP_PORT: {MP_PORT}, FFT_PORT: {FFT_PORT}, XY_PORT: {XY_PORT}, SC_PORT: {SC_PORT}")
 
+    # Start threads for each socket.
+    thread_magnitude_phase = threading.Thread(
+        target=handle_socket,
+        args=(magnitude_phase_stop_event, magnitude_phase_ready_event, MP_PORT, "magnitude_phase_conn"),
+        daemon=True
+    )
+    thread_fft_oscilloscope = threading.Thread(
+        target=handle_socket,
+        args=(fft_oscilloscope_stop_event, fft_oscilloscope_ready_event, FFT_PORT, "fft_oscilloscope_conn"),
+        daemon=True
+    )
+    thread_xy_oscilloscope = threading.Thread(
+        target=handle_socket,
+        args=(xy_stop_event, xy_ready_event, XY_PORT, "xy_conn"),
+        daemon=True
+    )
+    thread_sc_oscilloscope = threading.Thread(
+        target=handle_socket,
+        args=(sc_stop_event, sc_ready_event, SC_PORT, "sc_conn"),
+        daemon=True
+    )
+
+    # Start all threads.
     thread_magnitude_phase.start()
     thread_fft_oscilloscope.start()
     thread_xy_oscilloscope.start()
+    thread_sc_oscilloscope.start()
 
-    logging.info("All threads started.")
+    logging.info("All socket threads started.")
 
 def close_socket(socket, name):
     """Utility to safely close a socket."""
@@ -1764,7 +1910,8 @@ def wait_for_threads(max_wait_time=10):
         if (
             thread_magnitude_phase.is_alive() and
             thread_fft_oscilloscope.is_alive() and
-            thread_xy_oscilloscope.is_alive()
+            thread_xy_oscilloscope.is_alive() and
+            thread_sc_oscilloscope.is_alive()
         ):
             logging.info("All threads are running. Proceeding to start plot managers...")
             return True
@@ -1796,19 +1943,21 @@ def wait_for_all_events(events, timeout):
 def PlayBack():
     global JSONLogFile
     global is_playing, is_paused, play_speed
-    global magnitude_phase_conn, magnitude_phase_socket
-    global xy_conn, xy_oscilloscope_socket
-    global fft_oscilloscope_conn, fft_oscilloscope_socket
-    global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event
-    global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event
-    global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope
+    global magnitude_phase_conn
+    global xy_conn, sc_conn
+    global fft_oscilloscope_conn
+    global magnitude_phase_stop_event, fft_oscilloscope_stop_event, xy_stop_event, sc_stop_event
+    global magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event, sc_ready_event
+    global thread_magnitude_phase, thread_fft_oscilloscope, thread_xy_oscilloscope, thread_sc_oscilloscope
 
     magnitude_phase_stop_event.clear()
     fft_oscilloscope_stop_event.clear()
     xy_stop_event.clear()
+    sc_stop_event.clear()
     magnitude_phase_ready_event.clear()
     fft_oscilloscope_ready_event.clear()
     xy_ready_event.clear()
+    sc_ready_event.clear()
 
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -1828,7 +1977,12 @@ def PlayBack():
     for item in control_items:
         dpg.configure_item(item=item, enabled=False)
     dpg.bind_item_theme('JSONLOGFILEtag', 'DisabledButton')
-    dpg.bind_item_theme('SEARCH_OSCILLOSCOPE', 'DisabledButton')  
+    dpg.bind_item_theme('SEARCH_OSCILLOSCOPE', 'DisabledButton')
+    
+    # Disable the checkboxes while running the plots/charts:
+    for i in range(len(chart_names)):
+        dpg.configure_item(f"checkbox_{i}", enabled=False)
+    
     # Enable all the control items
     control_items = [
         'Stop'
@@ -1899,6 +2053,7 @@ def PlayBack():
     magnitude_phase_conn = None
     fft_oscilloscope_conn = None
     xy_conn = None
+    sc_conn = None
     
     try:
         if plot_win_disposition == 'MatPlotLib':
@@ -1910,62 +2065,93 @@ def PlayBack():
             # Start socket threads
             start_socket_threads()
  
- 
-            # Wait for a maximum of 10 seconds for all threads to start
-            if not wait_for_threads(max_wait_time=10):
-                logging.info("Aborting: Failed to start all threads.")
-                return
-            
-             # Start plot managers
-            
-            plot_manager = PlotManagerMagnitudePhase()
-            plot_manager.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
-                       
-            xy_oscilloscope = XYoscilloscope()
-            xy_oscilloscope.start_plot_process()
-            
-            plot_manager_fft_oscilloscope = PlotManagerFFToscilloscope()
-            plot_manager_fft_oscilloscope.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
+            # Conditionally start each plot process based on chart_visibility.
+            # Index mapping: 0 -> XY Plot, 1 -> Bode Plots, 2 -> FFT/Oscilloscope, 3 -> Smith Chart
+            events = []
 
- 
+            # Bode Plots (Magnitude/Phase): chart_visibility[1]
+            if chart_visibility[1]:
+                plot_manager = PlotManagerMagnitudePhase()
+                plot_manager.start_plot_process(decades_list[start_decade], decades_list[stop_decade], points_per_decade)
+                events.append(magnitude_phase_ready_event)
+            else:
+                plot_manager = None
+
+            # XY Plot: chart_visibility[0]
+            if chart_visibility[0]:
+                xy_oscilloscope = XYoscilloscope()
+                xy_oscilloscope.start_plot_process()
+                events.append(xy_ready_event)
+            else:
+                xy_oscilloscope = None
+
+            # FFT/Oscilloscope: chart_visibility[2]
+            if chart_visibility[2]:
+                plot_manager_fft_oscilloscope = PlotManagerFFToscilloscope()
+                plot_manager_fft_oscilloscope.start_plot_process(decades_list[start_decade],
+                                                                 decades_list[stop_decade],
+                                                                 points_per_decade)
+                events.append(fft_oscilloscope_ready_event)
+            else:
+                plot_manager_fft_oscilloscope = None
+
+            # Smith Chart: chart_visibility[3] (not started in your configuration)
+            if chart_visibility[3]:
+                plot_manager_sc = PlotManagerSmithChart()
+                plot_manager_sc.start_plot_process()
+                events.append(sc_ready_event)
+            else:
+                plot_manager_sc = None
+
             timeout_duration = 180  # seconds
+            logging.info("Waiting for all requested plot servers to be ready...")
+            
+            if events:
+                all_ready = wait_for_all_events(events, timeout_duration)
+            
+                # Verify each individually if started
+                if chart_visibility[1]:
+                    if magnitude_phase_ready_event.is_set():
+                        logging.info("Magnitude/Phase server is ready.")
+                    else:
+                        logging.info("Error: Magnitude/Phase server failed to start within the timeout.")
 
-            # Create a list of your events that need to be signaled
-            events = [magnitude_phase_ready_event, fft_oscilloscope_ready_event, xy_ready_event]
+                if chart_visibility[0]:
+                    if xy_ready_event.is_set():
+                        logging.info("XY Oscilloscope server is ready.")
+                    else:
+                        logging.info("Error: XY Oscilloscope server failed to start within the timeout.")
 
-            logging.info("Waiting for all servers to be ready...")
-            all_ready = wait_for_all_events(events, timeout_duration)
+                if chart_visibility[2]:
+                    if fft_oscilloscope_ready_event.is_set():
+                        logging.info("FFT Oscilloscope server is ready.")
+                    else:
+                        logging.info("Error: FFT Oscilloscope server failed to start within the timeout.")
 
-            # Now check each event, since you may want to display an error for each one that failed.
-            if magnitude_phase_ready_event.is_set():
-                logging.info("Magnitude/Phase server is ready.")
+                if chart_visibility[3]:
+                    if sc_ready_event.is_set():
+                        logging.info("SC (Smith Chart) server is ready.")
+                    else:
+                        logging.info("Error: SC (Smith Chart) server failed to start within the timeout.")
             else:
-                logging.info("Error: Magnitude/Phase server failed to start within the timeout.")
-
-            if fft_oscilloscope_ready_event.is_set():
-                logging.info("FFT Oscilloscope server is ready.")
-            else:
-                logging.info("Error: FFT Oscilloscope server failed to start within the timeout.")
-
-            if xy_ready_event.is_set():
-                logging.info("XY Oscilloscope server is ready.")
-            else:
-                logging.info("Error: XY Oscilloscope server failed to start within the timeout.")
-        
+                logging.info("No plot processes were requested to start.")
+                
         else:
             # If not using Matplotlib, disable plot managers
             plot_manager = None
             plot_manager_fft_oscilloscope = None
             xy_oscilloscope = None
+            plot_manager_sc = None
             magnitude_phase_conn = None
             fft_oscilloscope_conn = None
             xy_conn = None
+            sc_conn = None
         
                 
         # Launch the background thread for processing
         processing_thread_instance = threading.Thread(
             target=processing_thread,
-            args=(data, plot_win_disposition, magnitude_phase_conn, fft_oscilloscope_conn, xy_conn),
+            args=(data, plot_win_disposition, magnitude_phase_conn, fft_oscilloscope_conn, xy_conn, sc_conn),
             daemon=True
         )
         processing_thread_instance.start()
@@ -1988,10 +2174,12 @@ def PlayBack_cleanup():
     magnitude_phase_stop_event.set()
     fft_oscilloscope_stop_event.set()
     xy_stop_event.set()
-
+    sc_stop_event.set()
+    
     close_socket(magnitude_phase_conn, "Magnitude/Phase")
     close_socket(fft_oscilloscope_conn, "FFT Oscilloscope")
     close_socket(xy_conn, "XY Oscilloscope")
+    close_socket(sc_conn, "SC Oscilloscope")
     logging.info("Stop events set for all threads.")
 
     # Wait for threads to terminate
@@ -2001,15 +2189,19 @@ def PlayBack_cleanup():
         thread_fft_oscilloscope.join()
     if thread_xy_oscilloscope and thread_xy_oscilloscope.is_alive():
         thread_xy_oscilloscope.join()
-
+    if thread_sc_oscilloscope and thread_sc_oscilloscope.is_alive():
+        thread_sc_oscilloscope.join()
+        
     # Clear events for next run
     magnitude_phase_stop_event.clear()
     fft_oscilloscope_stop_event.clear()
     xy_stop_event.clear()
+    sc_stop_event.clear()
     magnitude_phase_ready_event.clear()
     fft_oscilloscope_ready_event.clear()
     xy_ready_event.clear()
-
+    sc_ready_event.clear()
+    
     # Reset data containers
     raw_frequencies_range.clear()
     gain_Y.clear()
@@ -2036,6 +2228,11 @@ def stop_play_cleaup():
 
     for item in control_items:
         dpg.configure_item(item=item, enabled=True)
+
+    # Enable the checkboxes while running the plots/charts:
+    for i in range(len(chart_names)):
+        dpg.configure_item(f"checkbox_{i}", enabled=True)
+        
     dpg.bind_item_theme('SEARCH_OSCILLOSCOPE', 'GreenButton')
     dpg.bind_item_theme('JSONLOGFILEtag', 'GreenButton')
     control_items = [
@@ -2418,7 +2615,7 @@ def graph_processing(OSCvRange, FFTxMax, FFTmaxVal, FFTx, FFTy, OSCxin, OSCyin, 
         dpg.set_axis_limits('XY_Y', -RangeOffset * OSCvRange, RangeOffset * OSCvRange)
         dpg.set_axis_limits('XY_X', -RangeOffset * OSCvRange, RangeOffset * OSCvRange)
     else:
-        logging.info("XY Plot data issue seen at ", len(FFTx))
+        logging.info("XY Plot data issue seen at " + str(len(FFTx)))
 
 def graph_processing_Bode(gX, gY, pX, pY):
     """
@@ -2916,6 +3113,26 @@ def update_ch_out(sender, app_data):
     # Update the text widget using its tag
     dpg.set_value("CH_OUT", new_channel)
 
+def checkbox_callback(sender, app_data, user_data):
+    """Update chart visibility flags based on checkbox interactions."""
+    index = user_data["index"]
+    chart_visibility[index] = app_data
+    print(f"{chart_names[index]} visibility set to {app_data}")
+
+def radio_button_callback(sender, app_data):
+    """
+    Toggle visibility of the checkbox group and its placeholder based on the plot engine selection.
+    When MatPlotLib is selected, show the checkboxes.
+    Otherwise, hide them and show the spacing placeholder.
+    """
+    if app_data == "MatPlotLib":
+        dpg.show_item("checkbox_group")
+        dpg.hide_item("spacing_placeholder")
+    else:
+        dpg.hide_item("checkbox_group")
+        dpg.show_item("spacing_placeholder")
+
+
 # -- gui settings --- ---------------------------------------------
 def main():
     global channel_in, channel_out, CH1_probe_attenuation_ratio, CH2_probe_attenuation_ratio
@@ -2991,9 +3208,26 @@ def main():
                 with dpg.group(horizontal=True):
                     dpg.add_radio_button(tag='WIN_THEME', label='Window theme', items=win_theme, default_value=win_theme[0], callback=switch_theme)
                     # if platform.system() == 'Windows':
-                    dpg.add_radio_button(tag='PLOT_WIN_SETTING', label='Plot Engine', items=plot_win_settings, default_value=plot_win_settings[0])
+                    dpg.add_radio_button(tag='PLOT_WIN_SETTING', label='Plot Engine', items=plot_win_settings, default_value=plot_win_settings[0], callback=radio_button_callback)
                     dpg.add_radio_button(tag='DRAG_LINES_COMBO', items=drag_line_values, default_value=drag_line_values[1], callback=set_drag_lines)
 
+
+                # Group for chart visibility checkboxes, initially visible since MatPlotLib is default.
+                with dpg.group(horizontal=True, tag="checkbox_group"):
+                    for i, name in enumerate(chart_names):
+                        dpg.add_checkbox(
+                            label=name,
+                            default_value=chart_visibility[i],
+                            callback=checkbox_callback,
+                            user_data={"index": i},
+                            tag=f"checkbox_{i}"
+                        )
+                dpg.hide_item("checkbox_group")  # Hide checkboxes initially
+                # Add a spacing placeholder to maintain layout spacing
+                # (Here we show a text widget with a newline.
+                # In practice, dpg.add_dummy(width=200, height=50, tag="spacing_placeholder") # for more precise control over the empty space.
+                dpg.add_text("\n", tag="spacing_placeholder")
+                 
                 # Add advanced settings
                 dpg.add_text('\nAdvanced settings:')
                 dpg.add_input_float(tag='POINT_SCALE_COEFF', label='Point scale coefficient', min_value=0, min_clamped=True, default_value=5850, width=items_standard_width)
@@ -3019,7 +3253,7 @@ def main():
                 dpg.add_button(tag='LOGFILE', label="CSV Log File: " + LogFile, callback=lambda: dpg.show_item("file_dialog_id1"))
                 dpg.add_button(tag='JSONLOGFILEtag', label="JSON Log File: " + JSONLogFile, callback=lambda: dpg.show_item("file_dialog_id2"))
                 dpg.add_text('\n')
-                dpg.add_text('\n') # 2025/04/26 leaving space for variable to be added.
+                
                 # Create tabs
                 with dpg.tab_bar(tag='tab_bar'):
                     with dpg.tab(label="Terminal", tag='terminal_tab'):

@@ -6,7 +6,7 @@ MIT License
 
 Copyright (c) [2025] [Bode Plotter]
 Bode plot implementation for the handheld oscilloscope OWON HDS320S
-Highly rewritten and modified between 01/20/2025 to 05/04/2025
+Highly rewritten and modified between 01/20/2025 to 05/09/2025
 Modifications were done by Bode Plotter with assistance from AI sourced from Google and Bing.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -39,7 +39,7 @@ from uuid import uuid4
 import shutil  # Import for cleanup
 import atexit  # Import for safe cleanup upon exit
 # 2025/03/19 Import the matplotlib class for bode-plotter
-from bodeplots.managers import PlotManagerFFToscilloscope, PlotManagerMagnitudePhase, XYoscilloscope
+from bodeplots.managers import PlotManagerFFToscilloscope, PlotManagerMagnitudePhase, XYoscilloscope, PlotManagerSmithChart
 from bodeplots.app import main
 import tempfile
 import time
@@ -59,9 +59,9 @@ def robust_cleanup(directory):
 parser = argparse.ArgumentParser(description="BodePlots Application")
 parser.add_argument(
     "--plot-type",
-    choices=["XY", "MP", "FFT", "BODEPLOTTER"],
+    choices=["XY", "MP", "FFT", "SC", "BODEPLOTTER"],
     default=None,
-    help="Select the type of plot to display. Options: XY, MP, FFT, or BODEPLOTTER."
+    help="Select the type of plot to display. Options: XY, MP, FFT, SC, or BODEPLOTTER."
 )
 
 parser.add_argument(
@@ -232,7 +232,17 @@ elif plot_type == "MP":
     if sys.platform == "win32" or platform.system() == 'Windows':
         # Register the shutdown callback so that when the program exits,
         # the plotting process is signaled to stop.
-        atexit.register(plot_manager_mp.send_close_signal)    
+        atexit.register(plot_manager_mp.send_close_signal)
+elif plot_type == "SC":
+    if cache_dir_arg:
+        os.environ["MPLCONFIGDIR"] = cache_dir_arg
+    logging.info("Launching SCoscilloscope plot...")
+    plot_manager_sc = PlotManagerSmithChart()
+    plot_manager_sc.create_plot(plot_manager_sc.stop_event, cache_dir_arg)
+    if sys.platform == "win32" or platform.system() == 'Windows':
+        # Register the shutdown callback so that when the program exits,
+        # the plotting process is signaled to stop.
+        atexit.register(plot_manager_sc.send_close_signal)
 else:
     if __name__ == "__main__":
         main()

@@ -31,10 +31,12 @@ SOFTWARE.
 from .PlotManagerFFToscilloscope_classIP import PlotManagerFFToscilloscope
 from .PlotManagerMagnitudePhase_classIP import PlotManagerMagnitudePhase
 from .XYoscilloscope_classIP import XYoscilloscope
+from.PlotManagerSmithChart_classIP import PlotManagerSmithChart
 
 # Optionally, define __all__ to specify what gets imported with "from managers import *"
 __all__ = [
     "PlotManagerFFToscilloscope",
     "PlotManagerMagnitudePhase",
     "XYoscilloscope",
+    "PlotManagerSmithChart"
 ]
