@@ -331,10 +331,7 @@ options:
 1. **Smith Chart Normalization:**  
    - The Smith chart is currently not normalized. When the magnitude for an active filter exceeds 0 dB, the plot area scales dynamically to accommodate the data, causing the rendered chart to extend outside the standard Smith chart boundaries.
 
-2. **DearPyGui Maximize Button:**  
-   - The maximize button in DearPyGui does not function correctly because of fixed window size constraints, limiting its ability to enter a true full-screen mode.
-
-3. **Matplotlib Performance on Windows 11:**  
+2. **Matplotlib Performance on Windows 11:**  
    - On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds:
      - If Matplotlib is selected, starting measurements or playback may exceed 90 seconds before additional windows load.
      - Matplotlib windows are not automatically closed when DearPyGui exits, which can leave log files and temporary files in the user’s TEMP directory. To inspect the TEMP directory, use:
