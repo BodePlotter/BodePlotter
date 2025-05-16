@@ -160,7 +160,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 ## Command Line Options
 
 - All inputs are used for Windows 11 process spawning except for `--base-port`.
-- If the `--base-port` option is not specified, local ports 5001, 5002, and 5003 will be used to communicate with the Matplotlib windows.
+- If the `--base-port` option is not specified, local ports 5001, 5002, 5003, and 5004 will be used to communicate with the Matplotlib windows.
 
 ```bash
 usage: bodeplots [-h] [--plot-type {XY,MP,FFT,SC,BODEPLOTTER}] 
