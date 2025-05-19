@@ -166,8 +166,8 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 usage: bodeplots [-h] [--plot-type {XY,MP,FFT,SC,BODEPLOTTER}] 
                       [--start-decade START_DECADE] 
                       [--stop-decade STOP_DECADE] 
-                      [--points-per-decade POINTS_PER_DECADE]
-                      [--base-port BASE_PORT]
+                      [--points-per-decade POINTS_PER_DECADE] 
+                      [--base-port BASE_PORT] 
 
 BodePlots Application
 
@@ -182,7 +182,7 @@ options:
   --points-per-decade POINTS_PER_DECADE
                         Specify the number of points per decade for the plot.
   --base-port BASE_PORT
-                        Specify first IP port for + 0, + 1, + 2 ports.
+                        Specify first IP port for + 0, + 1, + 2, + 3 ports.
 
 ````
 
