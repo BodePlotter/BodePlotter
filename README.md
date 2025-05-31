@@ -353,14 +353,6 @@ options:
            WshShell.Run "cmd /c bodeplots.exe", 0, True
            Set WshShell = Nothing
            ```
-         - Without the `console_app` flag—allowing for multiple concurrent Matplotlib instances—you can start the application using the following commands:
-           ```powershell
-           cd C:\BodePlotter-ScopeFFT
-           .\bodeplotter\Scripts\activate
-           briefcase.exe -v
-           cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
-           .\Bode-Plots.exe
-           ```
 
 ---
 
