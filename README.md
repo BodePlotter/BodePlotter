@@ -343,24 +343,24 @@ options:
          ```powershell
          explorer $env:TEMP
          ```
-     - There is a known issue ([Bug #55 with briefcase-windows-VisualStudio-template](https://github.com/beeware/briefcase-windows-VisualStudio-template/issues/55)) where Matplotlib fails due to I/O handling problems. This arises because the Briefcase logging wrapper does not support managing multiple instances spawned by Matplotlib. (Note: Using Matplotlib within threads makes DearPyGui unstable; therefore, a new process per Matplotlib window is used instead.)
-     - **Workaround:**  
-       - Using the `console_app` flag in `pyproject.toml` to open a blank console appears to disable logging, which mitigates these issues. An advantage of the console is that you can press CTRL+C to close all Bode-Plots windows.
-       - It is recommended to stop active measurements or playback before proceeding, allowing port connections to close gracefully without generating crash dumps.
-       - If you would like to hide the console, consider creating a `bode-plots.vbs` script. If you encounter issues with invalid characters, open the file in Notepad++, select **Encoding → Convert to ANSI**, and then save the file. For example:
-         ```cmd
-         Set WshShell = CreateObject("WScript.Shell")
-         WshShell.Run "cmd /c bodeplots.exe", 0, True
-         Set WshShell = Nothing
-         ```
-       - Without the `console_app` flag—allowing for multiple concurrent Matplotlib instances—you can start the application using the following commands:
-         ```powershell
-         cd C:\BodePlotter-ScopeFFT
-         .\bodeplotter\Scripts\activate
-         briefcase.exe -v
-         cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
-         .\Bode-Plots.exe
-         ```
+     - Using Matplotlib within threads makes DearPyGui unstable; therefore, a new process per Matplotlib window is used instead.
+       - **Current Implementation:**  
+         - Using the `console_app` flag in `pyproject.toml` to open a blank console. The advantage of the console is that you can press CTRL+C to close all Bode-Plots windows.
+         - It is recommended to stop active measurements or playback before proceeding, allowing port connections to close gracefully without generating crash dumps.
+         - If you would like to hide the console, consider creating a `bode-plots.vbs` script. If you encounter issues with invalid characters, open the file in Notepad++, select **Encoding → Convert to ANSI**, and then save the file. For example:
+           ```cmd
+           Set WshShell = CreateObject("WScript.Shell")
+           WshShell.Run "cmd /c bodeplots.exe", 0, True
+           Set WshShell = Nothing
+           ```
+         - Without the `console_app` flag—allowing for multiple concurrent Matplotlib instances—you can start the application using the following commands:
+           ```powershell
+           cd C:\BodePlotter-ScopeFFT
+           .\bodeplotter\Scripts\activate
+           briefcase.exe -v
+           cd "$HOME\AppData\Local\Programs\Bode Plotter\Bode-Plots"
+           .\Bode-Plots.exe
+           ```
 
 ---
 
