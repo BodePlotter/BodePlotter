@@ -144,7 +144,7 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 
 ### Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Playback Video
 
-[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.5.mp4)
+[Watch the HDS320S Magnitude/Phase Bode Plotter window and MatPlotLib windows Video](./media/HDS320S-bode-plots-0.0.6.mp4)
 
 ---
 
@@ -163,18 +163,18 @@ The Bode plots were generated using the OWON HDS320S oscilloscope in conjunction
 - If the `--base-port` option is not specified, local ports 5001, 5002, 5003, and 5004 will be used to communicate with the Matplotlib windows.
 
 ```bash
-usage: bodeplots [-h] [--plot-type {XY,MP,FFT,SC,BODEPLOTTER}] 
-                      [--start-decade START_DECADE] 
-                      [--stop-decade STOP_DECADE] 
-                      [--points-per-decade POINTS_PER_DECADE] 
-                      [--base-port BASE_PORT] 
+usage: bodeplots.exe [-h] [--plot-type {XY,MP,FFT,SC,BODEPLOTTER}]
+                     [--start-decade START_DECADE] [--stop-decade STOP_DECADE]
+                     [--points-per-decade POINTS_PER_DECADE]
+                     [--base-port BASE_PORT] [--leave-logs]
 
 BodePlots Application
 
 options:
   -h, --help            show this help message and exit
   --plot-type {XY,MP,FFT,SC,BODEPLOTTER}
-                        Select the type of plot to display. Options: XY, MP, FFT, SC, or BODEPLOTTER.
+                        Select the type of plot to display. Options: XY, MP,
+                        FFT, SC, or BODEPLOTTER.
   --start-decade START_DECADE
                         Specify the starting decade for data processing.
   --stop-decade STOP_DECADE
@@ -183,7 +183,8 @@ options:
                         Specify the number of points per decade for the plot.
   --base-port BASE_PORT
                         Specify first IP port for + 0, + 1, + 2, + 3 ports.
-
+  --leave-logs          Leave log files and temp directories intact on exit
+                        and, on Linux, output logs to console.
 ````
 
 ---
@@ -206,7 +207,7 @@ options:
 ---
 
 ## Install on Windows 11
-1. Download [Bode-Plots-0.0.5.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/Bode-Plots-0.0.5.msi) and double-click it in File Explorer.
+1. Download [Bode-Plots-0.0.6.msi](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.6/Bode-Plots-0.0.6.msi) and double-click it in File Explorer.
 2. Follow the installation prompts: **Next** → **Next** → **Finish**.
 3. Open "Bode" from the Windows Start menu.
 4. Adjust vertical height as needed.
@@ -250,10 +251,10 @@ options:
 ---
 
 ## Install the .deb Package on Mint Linux (22.1)
-1. Download: [bodeplots_0.0.5-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/bodeplots_0.0.5-1.linuxmint-xia_amd64.deb).
+1. Download: [bodeplots_0.0.6-1~linuxmint-xia_amd64.deb](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.6/bodeplots_0.0.6-1.linuxmint-xia_amd64.deb).
 2. Open a terminal and run:
    ```bash
-   sudo apt install ./bodeplots_0.0.5-1~linuxmint-xia_amd64.deb
+   sudo apt install ./bodeplots_0.0.6-1~linuxmint-xia_amd64.deb
    ```
 
 ---
@@ -267,7 +268,7 @@ options:
 
 ## Build the .deb Package
 1. Use Live Mint (22.1) via VirtualBox or a local installation.
-2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/bodeplots-source-code.tgz).
+2. Download: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.6/bodeplots-source-code.tgz).
 3. Follow these steps:
    ```bash
    mkdir BodePlotter-ScopeFFT
@@ -287,7 +288,7 @@ options:
    briefcase build
    briefcase package
    ```
-   Package file location: `dist/bodeplots_0.0.5-1~linuxmint-xia_amd64.deb`.
+   Package file location: `dist/bodeplots_0.0.6-1~linuxmint-xia_amd64.deb`.
 
 ---
 
@@ -310,7 +311,7 @@ options:
     python.exe -m pip install --upgrade pip
     pip install briefcase numpy dearpygui matplotlib pyusb scipy screeninfo PyQt5
     ```
-4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.5/bodeplots-source-code.tgz)
+4.  Extract source code and build: [bodeplots-source-code.tgz](https://github.com/BodePlotter/BodePlotter/releases/download/0.0.6/bodeplots-source-code.tgz)
     ```PowerShell
     cd C:\BodePlotter-ScopeFFT
     .\bodeplotter\Scripts\activate
@@ -322,7 +323,7 @@ options:
     briefcase run -u
     briefcase package windows
     ```
-5.  Packaged MSI: `dist\Bode-Plots-0.0.5.msi`.
+5.  Packaged MSI: `dist\Bode-Plots-0.0.6.msi`.
 
 ---
 
@@ -332,17 +333,10 @@ options:
    - The Smith chart is currently not normalized. When the magnitude for an active filter exceeds 0 dB, the plot area scales dynamically to accommodate the data, causing the rendered chart to extend outside the standard Smith chart boundaries.
 
 2. **Matplotlib Performance on Windows 11:**  
-   - On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds:
+   - On Windows 11, Matplotlib may struggle to keep pace at higher playback speeds where the slider value is less than 0.6:
      - If Matplotlib is selected, starting measurements or playback may exceed 90 seconds before additional windows load.
-     - Matplotlib windows are not automatically closed when DearPyGui exits, which can leave log files and temporary files in the user’s TEMP directory. To inspect the TEMP directory, use:
-       - **Command Prompt:**
-         ```cmd
-         explorer %TEMP%
-         ```
-       - **PowerShell:**
-         ```powershell
-         explorer $env:TEMP
-         ```
+     - Matplotlib windows are not automatically closed when DearPyGui exits, which can leave log files and temporary files in the user’s TEMP directory.
+       - bodeplots will clear BodePlotter_* directories in %TEMP% that are over an hour old.
      - Using Matplotlib within threads makes DearPyGui unstable; therefore, a new process per Matplotlib window is used instead.
        - **Current Implementation:**  
          - Using the `console_app` flag in `pyproject.toml` to open a blank console. The advantage of the console is that you can press CTRL+C to close all Bode-Plots windows.
