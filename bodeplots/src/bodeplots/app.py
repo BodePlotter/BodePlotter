@@ -7,7 +7,7 @@ MIT License
 Copyright (c) [2025] [Bode Plotter]
 Original code written by Simone Albano on 10/15/2023
 Bode plot implementation for the handheld oscilloscope OWON HDS320S
-Highly rewritten and modified between 01/20/2025 to 05/09/2025
+Highly rewritten and modified between 01/20/2025 to 06/01/2025
 Modifications were done by Bode Plotter with assistance from AI sourced from Google and Bing.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1208,19 +1208,18 @@ def start_mesurement_threaded(plot_win_disposition,
         dpg.delete_item(item='DataTable')
         with dpg.table(parent='dataTableWindow', header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, width=setting_window_width - 5, height=318, freeze_rows=1,
                        scrollY=True, scrollX=False, borders_outerH=True, borders_innerV=True, borders_innerH=True, borders_outerV=True, tag='DataTable'):
-            dpg.add_table_column(label="Frequency")
-            dpg.add_table_column(label="MeasFreq")
-            dpg.add_table_column(label="Voltage")
-            dpg.add_table_column(label="Phase")
+            dpg.add_table_column(label="Frequency Hz")
+            dpg.add_table_column(label="Magnitude db")
+            dpg.add_table_column(label="Phase (Degrees)")
             dpg.add_table_column(label="FFT Hz")
-            dpg.add_table_column(label="FFT Meg")
+            dpg.add_table_column(label="FFT db")
         
         # Create a dictionary to hold input and output waves for each frequency
         data = {}
        
         # Open output CSV file for data writes.
         f = open(LogFile,'w')
-        f.write('Frequency,MeasFreq,VpkpkMeter,Phase,"FFT Hz","FFT Meg"\n') 
+        f.write('"Frequency Hz","Magnitude db","Phase (Degrees)" ,"FFT Hz","FFT db"\n') 
        
         # Measurement loop
         # PhaseLast is defined and initialized before entering the loop to zero.
@@ -1492,8 +1491,7 @@ def start_mesurement_threaded(plot_win_disposition,
                         
             with dpg.table_row(parent='DataTable'):
                 dpg.add_text(str(int(round(pX, 0))))
-                dpg.add_text(str(int(round(gX, 0))))
-                dpg.add_text(str(round(VpkpkMeterOut, 3)))
+                dpg.add_text(str(round(gY, 3)))
                 dpg.add_text(str(round(pY, 3)))
                 dpg.add_text(str(int(round(FFT_maxfreq, 0))))
                 dpg.add_text(str(round(FFT_max, 2)))
@@ -1505,9 +1503,7 @@ def start_mesurement_threaded(plot_win_disposition,
             
             f.write(str(int(round(pX, 0))))
             f.write(",")
-            f.write(str(int(round(gX, 0))))
-            f.write(",")
-            f.write(str(round(VpkpkMeterOut, 3)))
+            f.write(str(round(gY, 3)))
             f.write(",")
             # f.write(str(round(OrgPhaseCal, 3)))
             f.write(str(round(pY, 3)))
@@ -1705,8 +1701,7 @@ def processing_thread(data, plot_win_disposition,
             try:
                 with dpg.table_row(parent='DataTable'):
                     dpg.add_text(str(int(round(data[frequency]['pX'], 0))))
-                    dpg.add_text(str(int(round(data[frequency]['gX'], 0))))
-                    dpg.add_text(str(round(data[frequency]['VpkpkMeter'], 3)))
+                    dpg.add_text(str(round(data[frequency]['gY'], 3)))
                     dpg.add_text(str(round(data[frequency]['pY'], 3)))
                     dpg.add_text(str(int(round(data[frequency]['FFT_maxfreq'], 0))))
                     dpg.add_text(str(round(data[frequency]['FFT_max'], 2)))
@@ -2039,12 +2034,11 @@ def PlayBack():
     dpg.delete_item(item='DataTable')
     with dpg.table(parent='dataTableWindow', header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, width=setting_window_width - 5, height=318, freeze_rows=1,
                     scrollY=True, scrollX=False, borders_outerH=True, borders_innerV=True, borders_innerH=True, borders_outerV=True, tag='DataTable'):
-        dpg.add_table_column(label="Frequency")
-        dpg.add_table_column(label="MeasFreq")
-        dpg.add_table_column(label="Voltage")
-        dpg.add_table_column(label="Phase")
+        dpg.add_table_column(label="Frequency Hz")
+        dpg.add_table_column(label="Magnitude db")
+        dpg.add_table_column(label="Phase (Degrees)")
         dpg.add_table_column(label="FFT Hz")
-        dpg.add_table_column(label="FFT Meg")
+        dpg.add_table_column(label="FFT db")
 
     # Programmatically select the "Data Table" tab
     select_tab('data_table_tab')
@@ -3265,12 +3259,11 @@ def main():
 
                             # Add a table with various columns
                             with dpg.table(header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp, borders_outerH=True, borders_innerV=True, borders_innerH=True, borders_outerV=True, tag='DataTable'):
-                                dpg.add_table_column(label="Frequency")
-                                dpg.add_table_column(label="MeasFreq")
-                                dpg.add_table_column(label="Voltage")
-                                dpg.add_table_column(label="Phase")
+                                dpg.add_table_column(label="Frequency Hz")
+                                dpg.add_table_column(label="Magnitude db")
+                                dpg.add_table_column(label="Phase (Degrees)")
                                 dpg.add_table_column(label="FFT Hz")
-                                dpg.add_table_column(label="FFT Meg")
+                                dpg.add_table_column(label="FFT db")
         
             # Create a window for the magnitude Bode plot
             # with dpg.window(tag='MAG_PLOT_WIN', height=plot_window_height, width=plot_window_width, pos=(setting_window_width, 0), no_close=True, no_collapse=True, no_move=True, no_title_bar=True, no_resize=True):

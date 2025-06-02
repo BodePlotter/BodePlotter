@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "Bode-Plots"
 bundle = "0.1"
-version = "0.0.5"
+version = "0.0.6"
 url = "https://github.com/BodePlotter/BodePlotter"
 license.file = "LICENSE"
 author = "Bode Plotter"
@@ -42,6 +42,7 @@ requires = [
     "screeninfo",
     "PyQt5",
     "scikit-rf",
+    "psutil", 
 ]
 
 test_requires = [
@@ -68,6 +69,7 @@ requires = [
     "screeninfo",
     "PyQt5",
     "scikit-rf",
+    "psutil", 
 ]
 
 [tool.briefcase.app.bodeplots.linux.system.debian]
@@ -121,6 +123,7 @@ requires = [
     "screeninfo",
     "PyQt5",
     "scikit-rf",
+    "psutil", 
 ]
 system_requires = [
     "dll-required-for-matplotlib",

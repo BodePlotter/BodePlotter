@@ -20,3 +20,7 @@
 ## 0.0.5 (9 May 2025)
 
 * Add Smith Chart for MatPlotLib only.
+
+## 0.0.6 (1 June 2025)
+
+* Add command line option --leave-logs and update CSV table columns.
